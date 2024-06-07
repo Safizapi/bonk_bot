@@ -1,32 +1,31 @@
 import asyncio
-from bonkBot.BonkBot import bonk_login
-from bonkBot.GameTypes import Teams, Modes
+from bonkBot.BonkBot import bonk_account_login
+from bonkBot.Game import Game, Player
+
+bot = bonk_account_login("Safizapi_", "I've just changed password")
+
+
+@bot.on("game_connect")
+async def on_connect(game: Game):
+    print(f"Connected game {game.room_name}")
+
+
+@bot.on("player_join")
+async def on_player_join(game: Game, player: Player):
+    await game.send_message(f"Hi, {player.username}")
+
+
+@bot.on("game_disconnect")
+async def on_game_disconnect(game: Game):
+    print(f"Disconnected from game {game.room_name}")
 
 
 async def main():
-    bot = bonk_login("go_harder_daddy", "123")
-
-    # room = [room for room in bot.get_rooms() if room.name == "OG_NEW_PLAYER"][0]
-    # game = room.join()
-
     game = bot.create_game()
-    for i in game.players:
-        print(i.__dict__)
-    print(game.__dict__)
+
     await game.connect()
-    await game.set_mode(Modes.Grapple())
-    await game.set_rounds(9)
-    await game.toggle_team_lock(True)
-    await game.toggle_teams(True)
-    await game.toggle_bot_ready(True)
-    player = game.players[0]
-    await player.balance(-100)
-    await player.move_to_team(Teams.Red())
-    await player.give_host()
-    for i in game.players:
-        print(i.__dict__)
-    print(game.__dict__)
-    await game.leave()
+    await game.send_message("New room!")
+
     await bot.run()
 
 

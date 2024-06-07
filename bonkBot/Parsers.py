@@ -1,9 +1,10 @@
 import datetime
 import json
 
-from .Game import Teams, Modes
+from .GameTypes import Teams, Modes
 
 
+# Credits to https://shaunx777.github.io/dbid2date/
 def db_id_to_date(db_id: int) -> datetime.datetime or str:
     with open("bonkBot/dbids.json") as file:
         db_ids = json.load(file)
@@ -47,7 +48,7 @@ def team_from_number(number: int) -> Teams.Spectator | Teams.FFA | Teams.Red | T
 
 
 def mode_from_short_name(
-        short_name: str
+    short_name: str
 ) -> Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football:
     if short_name == "b":
         return Modes.Classic()

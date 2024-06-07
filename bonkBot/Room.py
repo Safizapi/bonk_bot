@@ -30,9 +30,11 @@ class Room:
     def join(self, password="") -> Game:
         return Game(
             self.bot,
+            self.name,
             socketio.AsyncClient(ssl_verify=False, logger=True, engineio_logger=True),
             False,
             self.mode,
             False,
+            self.bot.event_emitter,
             game_join_params=[self.room_id, password]
         )

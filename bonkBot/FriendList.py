@@ -1,7 +1,6 @@
 import datetime
 from typing import List
 
-from .Room import Room
 from .Settings import session, links
 from .Parsers import db_id_to_date
 from .Game import Game

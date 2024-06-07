@@ -1,8 +1,10 @@
 import asyncio
+import random
 from random import shuffle
 from string import ascii_lowercase
 import socketio
 from typing import List
+from pymitter import EventEmitter
 
 from .BonkMap import BonkMap
 from .Settings import PROTOCOL_VERSION, session, links
@@ -14,15 +16,19 @@ class Game:
     def __init__(
         self,
         bot,
+        room_name: str,
         socket_client: socketio.AsyncClient,
         is_host: bool,
         mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football,
         is_created_by_bot: bool,
+        event_emitter: EventEmitter,
         game_create_params: list | None = None,
         game_join_params: list | None = None,
-        is_connected: bool = False,
+        is_connected: bool = False
     ) -> None:
         self.bot = bot
+        self.room_name: str = room_name
+        self.room_password: str = ""
         self.players: List[Player] = []
         self.messages: List[Message] = []
         self.is_host: bool = is_host
@@ -34,6 +40,7 @@ class Game:
         self.bonk_map: BonkMap | None = None
         self.__initial_state: str = ""
         self.__socket_client: socketio.AsyncClient = socket_client
+        self.__event_emitter: EventEmitter = event_emitter
         self.__is_created_by_bot: bool = is_created_by_bot
         self.__game_create_params: list | None = game_create_params
         self.__game_join_params: list | None = game_join_params
@@ -53,17 +60,16 @@ class Game:
         shuffle(alph)
         return "".join(alph[:10]) + "000000"
 
-    async def play(self) -> None:
-        pass
-        # if not self.is_host:
-        #     raise Exception("Can't start a game: bot is not a host")
-        #
-        # await self.__socket_client.emit(
-        #     5,
-        #     {
-        #
-        #     }
-        # )
+    # async def play(self) -> None:
+    #     if not self.is_host:
+    #         raise Exception("Can't start a game: bot is not a host")
+    #
+    #     await self.__socket_client.emit(
+    #         5,
+    #         {
+    #
+    #         }
+    #     )
 
     async def change_bot_team(
         self,
@@ -99,13 +105,12 @@ class Game:
         self.teams_lock_toggle = True
 
     async def send_message(self, message: str) -> None:
-        if self.__is_connected:
-            await self.__socket_client.emit(
-                10,
-                {
-                    "message": message
-                }
-            )
+        await self.__socket_client.emit(
+            10,
+            {
+                "message": message
+            }
+        )
 
     async def toggle_bot_ready(self, flag: bool) -> None:
         await self.__socket_client.emit(
@@ -180,6 +185,30 @@ class Game:
     async def record(self) -> None:
         await self.__socket_client.emit(33)
 
+    async def change_room_name(self, new_room_name: str) -> None:
+        if not self.is_host:
+            raise BotIsNotAHostError("Cannot change room name due the lack of bot permissions")
+
+        await self.__socket_client.emit(
+            52,
+            {
+                "newName": new_room_name
+            }
+        )
+        self.room_name = new_room_name
+
+    async def change_room_password(self, new_password: str) -> None:
+        if not self.is_host:
+            raise BotIsNotAHostError("Cannot change room password due the lack of bot permissions")
+
+        await self.__socket_client.emit(
+            53,
+            {
+                "newPass": new_password
+            }
+        )
+        self.room_password = new_password
+
     async def leave(self) -> None:
         await self.__socket_client.disconnect()
         self.__is_connected = False
@@ -193,7 +222,7 @@ class Game:
         await self.__socket_client.emit(50)
         await self.leave()
 
-    async def wait(self):
+    async def wait(self) -> None:
         await self.__socket_client.wait()
 
     async def __create(
@@ -209,36 +238,63 @@ class Game:
 
         @self.__socket_client.event
         async def connect():
-            print('connection established')
             self.__is_connected = True
             self.is_host = True
             new_peer_id = self.__get_peer_id()
 
-            await self.__socket_client.emit(
-                12,
-                {
-                    "peerID": new_peer_id,
-                    "roomName": name,
-                    "maxPlayers": max_players,
-                    "password": password,
-                    "dbid": self.bot.user_id,
-                    "guest": False,
-                    "minLevel": min_level,
-                    "maxLevel": max_level,
-                    "latitude": 57.7686,
-                    "longitude": 40.9252,
-                    "country": "RU",
-                    "version": PROTOCOL_VERSION,
-                    "hidden": int(is_hidden),
-                    "quick": False,
-                    "mode": "custom",
-                    "token": self.bot.token,
-                    "avatar": {
-                        "layers": [],
-                        "bc": 4492031
+            if not self.bot.is_guest:
+                await self.__socket_client.emit(
+                    12,
+                    {
+                        "peerID": new_peer_id,
+                        "roomName": name,
+                        "maxPlayers": max_players,
+                        "password": password,
+                        "dbid": self.bot.user_id,
+                        "guest": False,
+                        "minLevel": min_level,
+                        "maxLevel": max_level,
+                        "latitude": 57.7686,
+                        "longitude": 40.9252,
+                        "country": "RU",
+                        "version": PROTOCOL_VERSION,
+                        "hidden": int(is_hidden),
+                        "quick": False,
+                        "mode": "custom",
+                        "token": self.bot.token,
+                        "avatar": {
+                            "layers": [],
+                            "bc": 4492031
+                        }
                     }
-                }
-            )
+                )
+            else:
+                await self.__socket_client.emit(
+                    12,
+                    {
+                        "peerID": new_peer_id,
+                        "roomName": name,
+                        "maxPlayers": max_players,
+                        "password": password,
+                        "dbid": random.randint(10_000_000, 14_000_000),
+                        "guest": True,
+                        "minLevel": min_level,
+                        "maxLevel": max_level,
+                        "latitude": 57.7686,
+                        "longitude": 40.9252,
+                        "country": "RU",
+                        "version": PROTOCOL_VERSION,
+                        "hidden": int(is_hidden),
+                        "quick": False,
+                        "mode": "custom",
+                        "guestName": self.bot.username,
+                        "token": self.bot.token,
+                        "avatar": {
+                            "layers": [],
+                            "bc": 4492031
+                        }
+                    }
+                )
 
             self.players.append(
                 Player(
@@ -254,13 +310,11 @@ class Game:
                     False,
                     Teams.FFA(),
                     0,
-                    {
-                        "layers": [],
-                        "bc": 0
-                    }
+                    self.bot.avatar
                 )
             )
 
+        self.__event_emitter.emit("game_connect", self)
         await self.__socket_events()
 
         await self.__socket_client.connect(socket_address)
@@ -282,27 +336,40 @@ class Game:
 
         @self.__socket_client.event
         async def connect():
-            print('connection established')
-            await self.__socket_client.emit(
-                13,
-                {
-                    "joinID": room_data["address"],
-                    "roomPassword": password,
-                    "guest": False,
-                    "dbid": 2,
-                    "version": PROTOCOL_VERSION,
-                    "peerID": self.__get_peer_id(),
-                    "bypass": "",
-                    "token": self.bot.token,
-                    "avatar": {
-                        "layers": [],
-                        "bc": 4492031
+            if not self.bot.is_guest:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": password,
+                        "guest": False,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "token": self.bot.token,
+                        "avatar": self.bot.avatar
                     }
-                }
-            )
+                )
+            else:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": password,
+                        "guest": True,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "guestName": self.bot.username,
+                        "avatar": self.bot.avatar
+                    }
+                )
 
             self.__is_connected = True
 
+        self.__event_emitter.emit("game_connect", self)
         await self.__socket_events()
 
         await self.__socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
@@ -353,26 +420,27 @@ class Game:
                 if x.team.number > 1:
                     self.teams_toggle = True
 
+            self.__event_emitter.emit("game_join", self)
+
         @self.__socket_client.on(4)
         async def on_player_join(short_id: int, peer_id: str, username: str, is_guest: bool, level: int, w, avatar: dict):
-            self.players.append(
-                Player(
-                    self.bot,
-                    self,
-                    self.__socket_client,
-                    False,
-                    peer_id,
-                    username,
-                    is_guest,
-                    level,
-                    False,
-                    False,
-                    Teams.FFA(),
-                    short_id,
-                    avatar
-                )
+            joined_player = Player(
+                self.bot,
+                self,
+                self.__socket_client,
+                False,
+                peer_id,
+                username,
+                is_guest,
+                level,
+                False,
+                False,
+                Teams.FFA(),
+                short_id,
+                avatar
             )
 
+            self.players.append(joined_player)
             await self.__socket_client.emit(
                 11,
                 {
@@ -429,40 +497,59 @@ class Game:
                     }
                 }
             )
+            self.__event_emitter.emit("player_join", self, joined_player)
 
         @self.__socket_client.on(5)
         async def on_player_left(short_id: int, w) -> None:
             left_player = [player for player in self.players if player.short_id == short_id][0]
             self.players.remove(left_player)
 
+            self.__event_emitter.emit("player_left", self, left_player)
+
         @self.__socket_client.on(8)
         async def on_player_ready(short_id: int, flag: bool) -> None:
             player = [player for player in self.players if player.short_id == short_id][0]
             player.is_ready = flag
 
+            if flag:
+                self.__event_emitter.emit("player_ready", player)
+
         @self.__socket_client.on(16)
         async def on_error(error):
-            print(error)
+            self.__event_emitter.emit("error", error)
 
         @self.__socket_client.on(18)
         async def on_player_team_change(short_id: int, team_number: int) -> None:
             player = [player for player in self.players if player.short_id == short_id][0]
-            player.team = team_from_number(team_number)
+            team = team_from_number(team_number)
+            player.team = team
+
+            self.__event_emitter.emit("player_team_change", self, player, team)
 
         @self.__socket_client.on(19)
         async def on_team_lock(flag: bool) -> None:
             self.teams_lock_toggle = flag
 
+            if flag:
+                self.__event_emitter.emit("team_lock", self)
+            else:
+                self.__event_emitter.emit("team_unlock", self)
+
         @self.__socket_client.on(20)
         async def on_message(short_id: int, message: str) -> None:
             author = [player for player in self.players if player.short_id == short_id][0]
+            _message = Message(message, author, self)
+
             self.messages.append(Message(message, author, self))
+            self.__event_emitter.emit("message", self, _message)
 
         @self.__socket_client.on(21)
         async def on_lobby_load(data: dict) -> None:
             self.mode = mode_from_short_name(data["mo"])
             self.teams_lock_toggle = data["tl"]
             self.rounds = data["wl"]
+
+            self.__event_emitter.emit("lobby_load", self)
 
         @self.__socket_client.on(24)
         async def on_player_kick(short_id: int, kick_only: bool) -> None:
@@ -472,12 +559,19 @@ class Game:
             if player.is_bot:
                 await self.leave()
 
+            if kick_only:
+                self.__event_emitter.emit("player_kick", self, player)
+            else:
+                self.__event_emitter.emit("player_ban", self, player)
+
         @self.__socket_client.on(26)
         async def on_mode_change(ga, mode_short_name: str) -> None:
             self.mode = mode_from_short_name(mode_short_name)
 
+            self.__event_emitter.emit("mode_change", self, self.mode)
+
         @self.__socket_client.on(29)
-        async def on_map_change(initial_state: str) -> None:
+        async def on_map_change(map_data: str) -> None:
             pass
 
         @self.__socket_client.on(36)
@@ -485,9 +579,16 @@ class Game:
             player = [player for player in self.players if player.short_id == short_id][0]
             player.balanced_by = percents
 
+            self.__event_emitter.emit("player_balance", self, player, percents)
+
         @self.__socket_client.on(39)
         async def on_teams_toggle(flag: bool) -> None:
             self.teams_toggle = flag
+
+            if flag:
+                self.__event_emitter.emit("teams_turn_on", self)
+            else:
+                self.__event_emitter.emit("teams_turn_off", self)
 
         @self.__socket_client.on(41)
         async def on_host_change(data: dict) -> None:
@@ -496,10 +597,27 @@ class Game:
 
             if old_host.is_bot and not new_host.is_bot:
                 self.is_host = False
+            elif not old_host.is_bot and new_host.is_bot:
+                self.is_host = True
+
+            self.__event_emitter.emit("host_change", self, old_host, new_host)
+
+        @self.__socket_client.on(58)
+        async def on_new_room_name(new_room_name: str) -> None:
+            self.room_name = new_room_name
+
+            self.__event_emitter.emit("new_room_name", self, new_room_name)
+
+        @self.__socket_client.on(59)
+        async def on_room_password_change(flag: int) -> None:
+            if bool(flag):
+                self.__event_emitter.emit("new_room_password", self)
+            else:
+                self.__event_emitter.emit("room_password_clear", self)
 
         @self.__socket_client.event
         async def disconnect():
-            print("disconnected")
+            self.__event_emitter.emit("game_disconnect", self)
 
 
 class Player:

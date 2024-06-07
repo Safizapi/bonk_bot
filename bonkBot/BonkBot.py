@@ -2,6 +2,8 @@ import datetime
 from typing import List
 import socketio
 import asyncio
+from pymitter import EventEmitter
+import nest_asyncio
 
 from .Settings import session, PROTOCOL_VERSION, links
 from .FriendList import FriendList
@@ -12,16 +14,29 @@ from .Game import Game
 from .GameTypes import Modes
 from .Parsers import mode_from_short_name
 
+nest_asyncio.apply()
+
 
 class BonkBot:
-    def __init__(self, token: str, user_id: int, username: str, xp: int, avatars: list, legacy_friends: list) -> None:
-        self.token: str = token
-        self.user_id: int = user_id
+    def __init__(
+        self,
+        token: str | None,
+        user_id: int | None,
+        username: str,
+        is_guest: bool,
+        xp: int | None,
+        legacy_friends: list | None
+    ) -> None:
+        self.token: str | None = token
+        self.user_id: int | None = user_id
         self.username: str = username
-        self.xp: int = xp
-        self.avatars: list = avatars
-        self.legacy_friends: list = legacy_friends
+        self.is_guest: bool = is_guest
+        self.xp: int | None = xp
+        self.avatar: dict = {"layers": [], "bc": 0}
+        self.legacy_friends: list | None = legacy_friends
         self.games: List[Game] = []
+        self.event_emitter = EventEmitter()
+        self.on = self.event_emitter.on
 
     async def run(self) -> None:
         tasks = []
@@ -42,21 +57,31 @@ class BonkBot:
     ) -> Game:
         return Game(
             self,
+            name,
             socketio.AsyncClient(ssl_verify=False, logger=True, engineio_logger=True),
             True,
             Modes.Classic(),
             True,
+            self.event_emitter,
             game_create_params=[name, max_players, is_hidden, password, min_level, max_level]
         )
 
-    # Credits to https://shaunx777.github.io/dbid2date/
     def get_creation_date(self) -> datetime.datetime or str:
+        if self.is_guest:
+            raise BotIsGuestError("Cannot get creation date since bot uses guest account")
+
         return db_id_to_date(self.user_id)
 
     def get_level(self) -> int:
+        if self.is_guest:
+            return 0
+
         return int((self.xp / 100) ** 0.5 + 1)
 
     def get_friend_list(self) -> FriendList:
+        if self.is_guest:
+            raise BotIsGuestError("Cannot get friend list since bot uses guest account")
+
         data = session.post(
             links["friends"],
             {
@@ -101,6 +126,9 @@ class BonkBot:
         pass
 
     def get_own_maps(self) -> List[BonkMap]:
+        if self.is_guest:
+            raise BotIsGuestError("Cannot get own maps since bot uses guest account")
+
         data = session.post(
             "https://bonk2.io/scripts/map_getown.php",
             {
@@ -149,7 +177,7 @@ class BonkBot:
         ]
 
 
-def bonk_login(username: str, password: str) -> BonkBot:
+def bonk_account_login(username: str, password: str) -> BonkBot:
     data = session.post(
         links["login"],
         {
@@ -168,12 +196,31 @@ def bonk_login(username: str, password: str) -> BonkBot:
         data["token"],
         data["id"],
         data["username"],
+        False,
         data["xp"],
-        [data["avatar1"], data["avatar2"], data["avatar3"], data["avatar4"], data["avatar5"]],
         data["legacyFriends"].split("#")
     )
 
 
+def bonk_guest_login(username: str) -> BonkBot:
+    if not (len(username) in range(2, 16)):
+        raise BonkLoginError("Username must be between 2 and 16 characters")
+
+    return BonkBot(
+        None,
+        None,
+        username,
+        True,
+        None,
+        None
+    )
+
+
 class BonkLoginError(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+
+class BotIsGuestError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message

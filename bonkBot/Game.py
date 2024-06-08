@@ -6,9 +6,9 @@ import socketio
 from typing import List
 from pymitter import EventEmitter
 
-from .BonkMap import BonkMap
+from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
 from .Settings import PROTOCOL_VERSION, session, links
-from .GameTypes import Modes, Teams
+from .Types import Servers, Modes, Teams
 from .Parsers import team_from_number, mode_from_short_name
 
 
@@ -33,11 +33,12 @@ class Game:
         self.messages: List[Message] = []
         self.is_host: bool = is_host
         self.is_bot_ready: bool = False
+        self.is_banned: bool = False
         self.mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football = mode
         self.teams_toggle: bool = False
         self.teams_lock_toggle: bool = False
         self.rounds: int = 3
-        self.bonk_map: BonkMap | None = None
+        self.bonk_map: OwnMap | None = None
         self.__initial_state: str = ""
         self.__socket_client: socketio.AsyncClient = socket_client
         self.__event_emitter: EventEmitter = event_emitter
@@ -158,14 +159,20 @@ class Game:
         )
         self.rounds = rounds
 
-    async def set_map(self, bonk_map: BonkMap) -> None:
+    async def set_map(self, bonk_map: OwnMap | Bonk2Map | Bonk1Map) -> None:
         if not self.is_host:
             raise BotIsNotAHostError("Cannot change map due the lack of bot permissions")
+        if not (
+            isinstance(bonk_map, OwnMap) or
+            isinstance(bonk_map, Bonk2Map) or
+            isinstance(bonk_map, Bonk1Map)
+        ):
+            raise ValueError("Input param is not a map")
 
         await self.__socket_client.emit(
             23,
             {
-                "m": bonk_map.level_data
+                "m": bonk_map.map_data
             }
         )
         self.bonk_map = bonk_map
@@ -232,9 +239,10 @@ class Game:
         is_hidden=False,
         password="",
         min_level=0,
-        max_level=999
+        max_level=999,
+        server=Servers.Warsaw()
     ) -> None:
-        socket_address = f"https://b2stockholm1.bonk.io/socket.io"
+        socket_address = f"https://{server}.bonk.io/socket.io"
 
         @self.__socket_client.event
         async def connect():
@@ -254,9 +262,9 @@ class Game:
                         "guest": False,
                         "minLevel": min_level,
                         "maxLevel": max_level,
-                        "latitude": 57.7686,
-                        "longitude": 40.9252,
-                        "country": "RU",
+                        "latitude": server.latitude,
+                        "longitude": server.latitude,
+                        "country": server.country,
                         "version": PROTOCOL_VERSION,
                         "hidden": int(is_hidden),
                         "quick": False,
@@ -280,9 +288,9 @@ class Game:
                         "guest": True,
                         "minLevel": min_level,
                         "maxLevel": max_level,
-                        "latitude": 57.7686,
-                        "longitude": 40.9252,
-                        "country": "RU",
+                        "latitude": server.latitude,
+                        "longitude": server.longitude,
+                        "country": server.country,
                         "version": PROTOCOL_VERSION,
                         "hidden": int(is_hidden),
                         "quick": False,
@@ -332,7 +340,7 @@ class Game:
         ).json()
 
         if room_data.get("e") == "ratelimited":
-            raise ConnectionRateLimitedError("Cannot connect to server, sent to many requests")
+            raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests")
 
         @self.__socket_client.event
         async def connect():
@@ -441,62 +449,64 @@ class Game:
             )
 
             self.players.append(joined_player)
-            await self.__socket_client.emit(
-                11,
-                {
-                    "sid": short_id,
-                    "gs": {
-                        "map": {
-                            "v": 13,
-                            "s": {
-                                "re": False,
-                                "nc": False,
-                                "pq": 1,
-                                "gd": 25,
-                                "fl": False
+
+            if self.is_host:
+                await self.__socket_client.emit(
+                    11,
+                    {
+                        "sid": short_id,
+                        "gs": {
+                            "map": {
+                                "v": 13,
+                                "s": {
+                                    "re": False,
+                                    "nc": False,
+                                    "pq": 1,
+                                    "gd": 25,
+                                    "fl": False
+                                },
+                                "physics": {
+                                    "shapes": [],
+                                    "fixtures": [],
+                                    "bodies": [],
+                                    "bro": [],
+                                    "joints": [],
+                                    "ppm": 12
+                                },
+                                "spawns": [],
+                                "capZones": [],
+                                "m": {
+                                    "a": "💀",
+                                    "n": "Test map",
+                                    "dbv": 2,
+                                    "dbid": 1157352,
+                                    "authid": -1,
+                                    "date": "2024-06-04 06:03:34",
+                                    "rxid": 0,
+                                    "rxn": "",
+                                    "rxa": "",
+                                    "rxdb": 1,
+                                    "cr": [
+                                        "💀"
+                                    ],
+                                    "pub": True,
+                                    "mo": "",
+                                    "vu": 0,
+                                    "vd": 0
+                                }
                             },
-                            "physics": {
-                                "shapes": [],
-                                "fixtures": [],
-                                "bodies": [],
-                                "bro": [],
-                                "joints": [],
-                                "ppm": 12
-                            },
-                            "spawns": [],
-                            "capZones": [],
-                            "m": {
-                                "a": "💀",
-                                "n": "Test map",
-                                "dbv": 2,
-                                "dbid": 1157352,
-                                "authid": -1,
-                                "date": "2024-06-04 06:03:34",
-                                "rxid": 0,
-                                "rxn": "",
-                                "rxa": "",
-                                "rxdb": 1,
-                                "cr": [
-                                    "💀"
-                                ],
-                                "pub": True,
-                                "mo": "",
-                                "vu": 0,
-                                "vd": 0
-                            }
-                        },
-                        "gt": 2,
-                        "wl": "pog",
-                        "q": False,
-                        "tl": False,
-                        "tea": False,
-                        "ga": "b",
-                        "mo": "b",
-                        "bal": [],
-                        "GMMode": ""
+                            "gt": 2,
+                            "wl": "pog",
+                            "q": False,
+                            "tl": False,
+                            "tea": False,
+                            "ga": "b",
+                            "mo": "b",
+                            "bal": [],
+                            "GMMode": ""
+                        }
                     }
-                }
-            )
+                )
             self.__event_emitter.emit("player_join", self, joined_player)
 
         @self.__socket_client.on(5)
@@ -516,7 +526,17 @@ class Game:
 
         @self.__socket_client.on(16)
         async def on_error(error):
-            self.__event_emitter.emit("error", error)
+            exception = GameConnectionError(error)
+
+            if error == "invalid_params":
+                exception = GameConnectionError(
+                    "Invalid parameters. It means you've configured bot wrong, maybe your avatar. "
+                    "If you're sure this is library issue, send pull request on https://github.com/Safizapi/bonkBot"
+                )
+
+            self.__event_emitter.emit("error", exception)
+            await self.leave()
+            raise exception
 
         @self.__socket_client.on(18)
         async def on_player_team_change(short_id: int, team_number: int) -> None:
@@ -556,13 +576,19 @@ class Game:
             player = [player for player in self.players if player.short_id == short_id][0]
             self.players.remove(player)
 
-            if player.is_bot:
-                await self.leave()
-
             if kick_only:
-                self.__event_emitter.emit("player_kick", self, player)
+                if player.is_bot:
+                    self.__event_emitter.emit("bot_kick", self)
+                    await self.leave()
+                else:
+                    self.__event_emitter.emit("player_kick", self, player)
             else:
-                self.__event_emitter.emit("player_ban", self, player)
+                if player.is_bot:
+                    self.__event_emitter.emit("bot_ban", self)
+                    await self.leave()
+                    self.is_banned = True
+                else:
+                    self.__event_emitter.emit("player_ban", self, player)
 
         @self.__socket_client.on(26)
         async def on_mode_change(ga, mode_short_name: str) -> None:
@@ -744,7 +770,7 @@ class Message:
         self.game: Game = game
 
 
-class ConnectionRateLimitedError(Exception):
+class GameConnectionError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message
 

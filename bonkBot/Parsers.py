@@ -1,7 +1,7 @@
 import datetime
 import json
 
-from .GameTypes import Teams, Modes
+from .Types import Teams, Modes
 
 
 # Credits to https://shaunx777.github.io/dbid2date/

@@ -1,8 +1,10 @@
 import asyncio
-from bonkBot.BonkBot import bonk_account_login
-from bonkBot.Game import Game, Player, Message
 
-bot = bonk_account_login("test_account_2", "2")
+from bonkBot.BonkBot import bonk_guest_login
+from bonkBot.Game import Game, Player, Message
+from bonkBot.Types import Servers, Modes
+
+bot = bonk_guest_login("Safizapi")
 
 
 @bot.on("game_connect")
@@ -15,19 +17,10 @@ async def on_player_join(game: Game, player: Player):
     await game.send_message(f"Hi, {player.username}")
 
 
-@bot.on("player_ready")
-async def on_player_ready(game: Game, player: Player):
-    print(f"[{game.room_name}] Player {player.username} is ready for game.")
-
-
 @bot.on("message")
 async def on_message(game: Game, message: Message):
-    print(f"[{game.room_name}] {message.author.username}: {message.content}")
-
-
-@bot.on("bot_kick")
-async def on_bot_ban(game: Game):
-    print(f"Bot was kicked from game {game.room_name}")
+    if message.content == "!ping" and not message.author.is_bot:
+        await game.send_message("Pong!")
 
 
 @bot.on("game_disconnect")
@@ -36,7 +29,9 @@ async def on_game_disconnect(game: Game):
 
 
 async def main():
-    game = await bot.create_game()
+    game = await bot.create_game(name="Cool room", max_players=8, server=Servers.Warsaw())
+    await game.set_mode(Modes.Grapple())
+
     await bot.run()
 
 

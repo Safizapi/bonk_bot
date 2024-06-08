@@ -19,11 +19,11 @@ nest_asyncio.apply()
 
 class BonkBot:
     """
-    Base class for AccountBonkBot and GuestBonkBot
+    Base class for AccountBonkBot and GuestBonkBot.
 
-    :param username: bot username
-    :param is_guest: indicates whether the bot is a guest or not
-    :param xp: amount of xp on bot's account
+    :param username: bot username.
+    :param is_guest: indicates whether the bot is a guest or not.
+    :param xp: amount of xp on bot's account.
     """
 
     def __init__(self, username: str, is_guest: bool, xp: int) -> None:
@@ -36,7 +36,7 @@ class BonkBot:
         self.on = self.event_emitter.on
 
     async def run(self) -> None:
-        """Prevents room connections from stopping and "starts" the bot"""
+        """Prevents room connections from stopping and "starts" the bot."""
 
         tasks = []
 
@@ -115,7 +115,7 @@ class BonkBot:
         return game
 
     def get_level(self) -> int:
-        """Returns account level from its XP"""
+        """Returns account level from its XP."""
         if self.is_guest:
             return 0
 
@@ -124,7 +124,7 @@ class BonkBot:
     @staticmethod
     def get_b2_maps(request: str, by_name=True, by_author=True) -> List[Bonk2Map]:
         """
-        Returns list of bonk 2 maps.
+        Returns list of bonk2 maps.
 
         :param request: Input string along which the search is performed.
         :param by_name: True if you want to search map by its name. Default is True.
@@ -158,12 +158,13 @@ class BonkBot:
             for bonk_map in data["maps"]
         ]
 
-    # TODO
-    def get_b1_maps(self, request: str, by_name: bool, by_author: bool) -> List[OwnMap]:
-        pass
+    # why tf do you store bonk 1 maps data like that, chaz? mapid0=1597734&mapname0=hammer+vs+SUS+ptb+&creationdate...
+    # @staticmethod
+    # def get_b1_maps(request: str, by_name=True, by_author=True) -> List[Bonk1Map]:
+    #     pass
 
     def get_rooms(self) -> List[Room]:
-        """Returns list of rooms in the bonk.io room list"""
+        """Returns list of rooms in the bonk.io room list."""
 
         data = session.post(
             links["rooms"],
@@ -191,14 +192,14 @@ class BonkBot:
 
 class AccountBonkBot(BonkBot):
     """
-    Bot class for bonk.io account
+    Bot class for bonk.io account.
 
-    :param token: session token that is received when logging into bonk.io account and required for some bonk api calls
-    :param user_id: account database ID
-    :param username: account name
-    :param is_guest: whether account is guest or not (False by default since class is used by bonk.io account)
-    :param xp: the amount of xp on account
-    :param legacy_friends: bonk 1 (flash version) friends of the account
+    :param token: session token that is received when logging into bonk.io account and required for some bonk api calls.
+    :param user_id: account database ID.
+    :param username: account name.
+    :param is_guest: whether account is guest or not (False by default since class is used by bonk.io account).
+    :param xp: the amount of xp on account.
+    :param legacy_friends: bonk 1 (flash version) friends of the account.
     """
 
     def __init__(self, token: str, user_id: int, username: str, is_guest: bool, xp: int, legacy_friends: list) -> None:
@@ -208,12 +209,12 @@ class AccountBonkBot(BonkBot):
         self.legacy_friends = legacy_friends
 
     def get_creation_date(self) -> datetime.datetime or str:
-        """Returns account creation date from its DBID"""
+        """Returns account creation date from its DBID."""
 
         return db_id_to_date(self.user_id)
 
     def get_own_maps(self) -> List[OwnMap]:
-        """Returns list of maps created on the account"""
+        """Returns list of maps created on the account."""
 
         data = session.post(
             "https://bonk2.io/scripts/map_getown.php",
@@ -238,7 +239,7 @@ class AccountBonkBot(BonkBot):
         ]
 
     def get_friend_list(self) -> FriendList:
-        """Returns account friend list that contains friends and friend requests"""
+        """Returns account friend list that contains friends and friend requests."""
 
         data = session.post(
             links["friends"],
@@ -253,11 +254,11 @@ class AccountBonkBot(BonkBot):
 
 class GuestBonkBot(BonkBot):
     """
-    Bot class for bonk.io guest account
+    Bot class for bonk.io guest account.
 
-    :param username: guest account name
-    :param is_guest: whether account is guest or not (True by default since class is used by bonk.io guest account)
-    :param xp: the amount of xp on account (0 by default)
+    :param username: guest account name.
+    :param is_guest: whether account is guest or not (True by default since class is used by bonk.io guest account).
+    :param xp: the amount of xp on account (0 by default).
     """
 
     def __init__(self, username: str, is_guest: bool, xp: int) -> None:
@@ -266,10 +267,10 @@ class GuestBonkBot(BonkBot):
 
 def bonk_account_login(username: str, password: str) -> AccountBonkBot:
     """
-    Creates bot on bonk.io account
+    Creates bot on bonk.io account.
 
-    :param username: bonk.io account username
-    :param password: bonk.io account password
+    :param username: bonk.io account username.
+    :param password: bonk.io account password.
 
     Example usage::
 
@@ -303,14 +304,14 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
 
 def bonk_guest_login(username: str) -> GuestBonkBot:
     """
-    Creates bot without bonk.io account (some methods like get_friend_list() are unavailable)
+    Creates bot without bonk.io account (some methods like get_friend_list() are unavailable).
 
     Example usage::
 
         bot = bonk_account_login("name", "pass")
         print(bot.username
 
-    :param username: guest username
+    :param username: guest username.
     """
 
     if not (len(username) in range(2, 16)):
@@ -320,7 +321,7 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
 
 
 class BonkLoginError(Exception):
-    """Raised when bonk login is failed"""
+    """Raised when bonk login is failed."""
 
     def __init__(self, message: str) -> None:
         self.message = message

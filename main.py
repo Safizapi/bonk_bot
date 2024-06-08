@@ -15,6 +15,11 @@ async def on_player_join(game: Game, player: Player):
     await game.send_message(f"Hi, {player.username}")
 
 
+@bot.on("player_ready")
+async def on_player_ready(game: Game, player: Player):
+    print(f"[{game.room_name}] Player {player.username} is ready for game.")
+
+
 @bot.on("message")
 async def on_message(game: Game, message: Message):
     print(f"[{game.room_name}] {message.author.username}: {message.content}")
@@ -31,11 +36,7 @@ async def on_game_disconnect(game: Game):
 
 
 async def main():
-    room = [x for x in bot.get_rooms() if x.name == "wdb"][0]
-
-    game = await room.join()
-    game2 = await bot.create_game()
-
+    game = await bot.create_game()
     await bot.run()
 
 

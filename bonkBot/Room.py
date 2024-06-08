@@ -6,17 +6,17 @@ from .Types import Modes
 
 class Room:
     """
-    Class for rooms from bonk.io room list
+    Class for rooms from bonk.io room list.
 
-    :param bot: bot class that loaded the room
-    :param room_id: database ID of room
-    :param name: name of the room
-    :param players: current amount of players that play in this room
-    :param max_players: maximal amount of players that can play in this room at the same time
-    :param has_password: whether room has password or not
-    :param mode: the mode that is currently played in the room
-    :param min_level: the minimal level that is required to join the room
-    :param max_level: the maximal level along with you can join the room
+    :param bot: bot class that loaded the room.
+    :param room_id: database ID of room.
+    :param name: name of the room.
+    :param players: current amount of players that play in this room.
+    :param max_players: maximal amount of players that can play in this room at the same time.
+    :param has_password: whether room has password or not.
+    :param mode: the mode that is currently played in the room.
+    :param min_level: the minimal level that is required to join the room.
+    :param max_level: the maximal level along with you can join the room.
     """
 
     def __init__(
@@ -43,9 +43,9 @@ class Room:
 
     async def join(self, password="") -> Game:
         """
-        Joins game from room list
+        Joins game from room list.
 
-        :param password: password to join room
+        :param password: password to join room.
 
         Example usage::
 

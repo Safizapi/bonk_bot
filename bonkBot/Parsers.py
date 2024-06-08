@@ -6,6 +6,12 @@ from .Types import Teams, Modes
 
 # Credits to https://shaunx777.github.io/dbid2date/
 def db_id_to_date(db_id: int) -> datetime.datetime or str:
+    """
+    Returns approximate account date creating from account database ID.
+
+    :param db_id: account database ID.
+    """
+
     with open("bonkBot/dbids.json") as file:
         db_ids = json.load(file)
         index = 0
@@ -33,6 +39,12 @@ def db_id_to_date(db_id: int) -> datetime.datetime or str:
 
 
 def team_from_number(number: int) -> Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow:
+    """
+    Returns mode class from its number according to bonk.io api.
+
+    :param number: the number of team in bonk.io api.
+    """
+
     if number == 0:
         return Teams.Spectator()
     if number == 1:
@@ -50,6 +62,12 @@ def team_from_number(number: int) -> Teams.Spectator | Teams.FFA | Teams.Red | T
 def mode_from_short_name(
     short_name: str
 ) -> Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football:
+    """
+    Returns mode class from its short name according to bonk.io api.
+
+    :param short_name: mode short name in bonk.io api.
+    """
+
     if short_name == "b":
         return Modes.Classic()
     if short_name == "ar":

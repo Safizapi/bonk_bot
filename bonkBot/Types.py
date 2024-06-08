@@ -1,4 +1,6 @@
 class Servers:
+    """Class for holding server types."""
+
     class Warsaw:
         def __init__(self) -> None:
             self.latitude = 52.2370
@@ -118,6 +120,8 @@ class Servers:
 
 
 class Modes:
+    """Class for holding mode types."""
+
     class Classic:
         def __init__(self) -> None:
             self.ga = "b"
@@ -170,6 +174,8 @@ class Modes:
 
 
 class Teams:
+    """Class for holding team types."""
+
     class Spectator:
         def __init__(self) -> None:
             self.number = 0

@@ -13,6 +13,22 @@ from .Parsers import team_from_number, mode_from_short_name
 
 
 class Game:
+    """
+    Class for holding real-time game info and events.
+
+    :param bot: bot class that uses the account.
+    :param room_name: name of the room.
+    :param socket_client: socketio client for sending and receiving events.
+    :param is_host: indicates whether bot is host or not.
+    :param mode: mode that is currently played.
+    :param is_created_by_bot: indicates whether room is created by bot or not. Needed to define which method should be
+            called in .connect() method.
+    :param event_emitter: pymitter event emitter for handling events in bot class.
+    :param game_create_params: params that are needed for game creation.
+    :param game_join_params: params that are needed to join the game.
+    :param is_connected: indicates whether bot is connected or not.
+    """
+
     def __init__(
         self,
         bot,
@@ -48,6 +64,8 @@ class Game:
         self.__is_connected: bool = is_connected
 
     async def connect(self) -> None:
+        """Method that establishes connection with game. You don't need to use it."""
+
         self.bot.games.append(self)
 
         if self.__is_created_by_bot:
@@ -57,6 +75,8 @@ class Game:
 
     @staticmethod
     def __get_peer_id() -> str:
+        """Generates new peer_id that is needed for game connection."""
+
         alph = list(ascii_lowercase + "0123456789")
         shuffle(alph)
         return "".join(alph[:10]) + "000000"
@@ -76,6 +96,12 @@ class Game:
         self,
         team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow
     ) -> None:
+        """
+        Changes current bot team.
+
+        :param team: target team that is bot moving in.
+        """
+
         if not (
             isinstance(team, Teams.Spectator) or
             isinstance(team, Teams.FFA) or
@@ -94,6 +120,12 @@ class Game:
         )
 
     async def toggle_team_lock(self, flag: bool) -> None:
+        """
+        Lock free team switching.
+
+        :param flag: on -> True (locked teams) | off -> False (free team switching).
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot lock teams due the lack of bot permissions")
 
@@ -106,6 +138,12 @@ class Game:
         self.teams_lock_toggle = True
 
     async def send_message(self, message: str) -> None:
+        """
+        Send message from bot in the game.
+
+        :param message: message content.
+        """
+
         await self.__socket_client.emit(
             10,
             {
@@ -114,6 +152,12 @@ class Game:
         )
 
     async def toggle_bot_ready(self, flag: bool) -> None:
+        """
+        Turn on/off bot ready mark in the game.
+
+        :param flag: on -> True (bot is ready) | off -> False (bot is not ready).
+        """
+
         await self.__socket_client.emit(
             16,
             {
@@ -126,6 +170,12 @@ class Game:
         self,
         mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football
     ) -> None:
+        """
+        Change game mode.
+
+        :param mode: one of the Modes class types.
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot set mode due the lack of bot permissions")
         if not (
@@ -148,6 +198,12 @@ class Game:
         self.mode = mode
 
     async def set_rounds(self, rounds: int) -> None:
+        """
+        Change rounds to win.
+
+        :param rounds: rounds that player has to reach to win the game.
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot set rounds due the lack of bot permissions")
 
@@ -160,6 +216,12 @@ class Game:
         self.rounds = rounds
 
     async def set_map(self, bonk_map: OwnMap | Bonk2Map | Bonk1Map) -> None:
+        """
+        Change game map.
+
+        :param bonk_map: the map that is wanted to be played in the game.
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot change map due the lack of bot permissions")
         if not (
@@ -178,6 +240,12 @@ class Game:
         self.bonk_map = bonk_map
 
     async def toggle_teams(self, flag: bool) -> None:
+        """
+        Turn on/off extended (red, blue, green and yellow) teams.
+
+        :param flag: on -> True (extended teams) | off -> False (only FFA).
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot toggle teams due the lack of bot permissions")
 
@@ -190,9 +258,17 @@ class Game:
         self.teams_toggle = flag
 
     async def record(self) -> None:
+        """Record the last 15 seconds of round."""
+
         await self.__socket_client.emit(33)
 
     async def change_room_name(self, new_room_name: str) -> None:
+        """
+        Change room name.
+
+        :param new_room_name: new room name.
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot change room name due the lack of bot permissions")
 
@@ -205,6 +281,12 @@ class Game:
         self.room_name = new_room_name
 
     async def change_room_password(self, new_password: str) -> None:
+        """
+        Change room password.
+
+        :param new_password: new room password.
+        """
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot change room password due the lack of bot permissions")
 
@@ -217,12 +299,15 @@ class Game:
         self.room_password = new_password
 
     async def leave(self) -> None:
+        """Disconnect from the game."""
         await self.__socket_client.disconnect()
         self.__is_connected = False
         self.players = []
         self.messages = []
 
     async def close(self) -> None:
+        """Close the game."""
+
         if not self.is_host:
             raise BotIsNotAHostError("Cannot close game due the lack of bot permissions")
 
@@ -230,6 +315,7 @@ class Game:
         await self.leave()
 
     async def wait(self) -> None:
+        """Prevents socketio session from stopping. You don't need to use it."""
         await self.__socket_client.wait()
 
     async def __create(
@@ -431,7 +517,15 @@ class Game:
             self.__event_emitter.emit("game_join", self)
 
         @self.__socket_client.on(4)
-        async def on_player_join(short_id: int, peer_id: str, username: str, is_guest: bool, level: int, w, avatar: dict):
+        async def on_player_join(
+            short_id: int,
+            peer_id: str,
+            username: str,
+            is_guest: bool,
+            level: int,
+            w,
+            avatar: dict
+        ) -> None:
             joined_player = Player(
                 self.bot,
                 self,
@@ -522,10 +616,10 @@ class Game:
             player.is_ready = flag
 
             if flag:
-                self.__event_emitter.emit("player_ready", player)
+                self.__event_emitter.emit("player_ready", self, player)
 
         @self.__socket_client.on(16)
-        async def on_error(error):
+        async def on_error(error) -> None:
             exception = GameConnectionError(error)
 
             if error == "invalid_params":
@@ -535,7 +629,17 @@ class Game:
                 )
 
             self.__event_emitter.emit("error", exception)
-            await self.leave()
+
+            if error in [
+                "invalid_params",
+                "password_wrong",
+                "room_full",
+                "players_xp_too_high",
+                "players_xp_too_low",
+                "guests_not_allowed"
+            ]:
+                await self.leave()
+
             raise exception
 
         @self.__socket_client.on(18)
@@ -642,11 +746,29 @@ class Game:
                 self.__event_emitter.emit("room_password_clear", self)
 
         @self.__socket_client.event
-        async def disconnect():
+        async def disconnect() -> None:
             self.__event_emitter.emit("game_disconnect", self)
 
 
 class Player:
+    """
+    Class that holds bonk.io game players' info.
+
+    :param bot: bot class that uses in the same game with player.
+    :param game: the game which player is playing in.
+    :param socket_client: socketio client for emitting events.
+    :param is_bot: indicates whether player is bot or not.
+    :param peer_id: player's game peer id.
+    :param username: player's username.
+    :param is_guest: indicates whether player is guest or not.
+    :param level: player's level.
+    :param is_ready: indicates whether player is ready or not.
+    :param is_tabbed: indicates whether player is tabbed or not.
+    :param team: Teams' class that indicates player's team.
+    :param short_id: player's id in the game.
+    :param avatar: player's avatar.
+    """
+
     def __init__(
         self,
         bot,
@@ -679,6 +801,8 @@ class Player:
         self.__peer_id: str = peer_id
 
     async def send_friend_request(self) -> None:
+        """Send friend request to the player."""
+
         await self.__socket_client.emit(
             35,
             {
@@ -687,6 +811,8 @@ class Player:
         )
 
     async def give_host(self) -> None:
+        """Give the host permissions to player."""
+
         if not self.game.is_host:
             raise BotIsNotAHostError("Cannot give host due the lack of bot permissions")
 
@@ -699,6 +825,8 @@ class Player:
         self.game.is_host = False
 
     async def kick(self) -> None:
+        """Kick player from game."""
+
         if not self.game.is_host:
             raise BotIsNotAHostError("Cannot kick player due the lack of bot permissions")
 
@@ -711,6 +839,8 @@ class Player:
         )
 
     async def ban(self) -> None:
+        """Ban player from game."""
+
         if not self.game.is_host:
             raise BotIsNotAHostError("Cannot ban player due the lack of bot permissions")
 
@@ -726,6 +856,11 @@ class Player:
         self,
         team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow
     ) -> None:
+        """
+        Move player to another team.
+
+        :param team: Teams class that indicates player's team.
+        """
         if not self.game.is_host:
             raise BotIsNotAHostError("Cannot move player due the lack of bot permissions")
         if not (
@@ -748,6 +883,12 @@ class Player:
         self.team = team
 
     async def balance(self, percents: int) -> None:
+        """
+        Nerf/buff player.
+
+        :param percents: the percent you want to balance player by (in range [-100, 100]).
+        """
+
         if not self.game.is_host:
             raise BotIsNotAHostError("Cannot balance player due the lack of bot permissions")
         if not (percents in range(-100, 101)):
@@ -764,6 +905,14 @@ class Player:
 
 
 class Message:
+    """
+    Class that holds info about game message.
+
+    :param content: message content.
+    :param author: Player class that indicates the author of message.
+    :param game: Game class that indicates the game where message was sent.
+    """
+
     def __init__(self, content: str, author: Player, game: Game) -> None:
         self.content: str = content
         self.author: Player = author
@@ -771,10 +920,14 @@ class Message:
 
 
 class GameConnectionError(Exception):
+    """Raised when game connection has some error."""
+
     def __init__(self, message: str) -> None:
         self.message = message
 
 
 class BotIsNotAHostError(Exception):
+    """Raised when bot is trying to perform something which can only be done with host permissions."""
+
     def __init__(self, message: str) -> None:
         self.message = message

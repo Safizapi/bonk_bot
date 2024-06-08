@@ -31,7 +31,10 @@ class Friend:
 
     async def join_game(self) -> Game:
         room = [room for room in self.bot.get_rooms() if room.room_id == self.room_id][0]
-        return room.join()
+        game = room.join()
+        await game.connect()
+
+        return game
 
 
 class FriendRequest:

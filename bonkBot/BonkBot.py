@@ -317,7 +317,7 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
     if not (len(username) in range(2, 16)):
         raise BonkLoginError("Username must be between 2 and 16 characters")
 
-    return GuestBonkBot(username, False, 0)
+    return GuestBonkBot(username, True, 0)
 
 
 class BonkLoginError(Exception):

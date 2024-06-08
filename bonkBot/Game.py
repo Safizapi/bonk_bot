@@ -332,7 +332,6 @@ class Game:
 
         @self.__socket_client.event
         async def connect():
-            self.__is_connected = True
             self.is_host = True
             new_peer_id = self.__get_peer_id()
 
@@ -382,7 +381,6 @@ class Game:
                         "quick": False,
                         "mode": "custom",
                         "guestName": self.bot.username,
-                        "token": self.bot.token,
                         "avatar": {
                             "layers": [],
                             "bc": 4492031
@@ -416,6 +414,8 @@ class Game:
 
         while not self.__is_connected:
             await asyncio.sleep(1)
+
+        self.__is_connected = True
 
     async def __join(self, room_id: int, password="") -> None:
         room_data = session.post(
@@ -461,8 +461,6 @@ class Game:
                     }
                 )
 
-            self.__is_connected = True
-
         self.__event_emitter.emit("game_connect", self)
         await self.__socket_events()
 
@@ -471,6 +469,8 @@ class Game:
 
         while not self.__is_connected:
             await asyncio.sleep(1)
+
+        self.__is_connected = True
 
     async def __keep_alive(self) -> None:
         while self.__is_connected:

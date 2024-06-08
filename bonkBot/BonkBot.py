@@ -7,38 +7,37 @@ import nest_asyncio
 
 from .Settings import session, PROTOCOL_VERSION, links
 from .FriendList import FriendList
-from .BonkMap import BonkMap
+from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
 from .Room import Room
 from .Parsers import db_id_to_date
 from .Game import Game
-from .GameTypes import Modes
+from .Types import Servers, Modes
 from .Parsers import mode_from_short_name
 
 nest_asyncio.apply()
 
 
 class BonkBot:
-    def __init__(
-        self,
-        token: str | None,
-        user_id: int | None,
-        username: str,
-        is_guest: bool,
-        xp: int | None,
-        legacy_friends: list | None
-    ) -> None:
-        self.token: str | None = token
-        self.user_id: int | None = user_id
+    """
+    Base class for AccountBonkBot and GuestBonkBot
+
+    :param username: bot username
+    :param is_guest: indicates whether the bot is a guest or not
+    :param xp: amount of xp on bot's account
+    """
+
+    def __init__(self, username: str, is_guest: bool, xp: int) -> None:
         self.username: str = username
         self.is_guest: bool = is_guest
-        self.xp: int | None = xp
+        self.xp: int = xp
         self.avatar: dict = {"layers": [], "bc": 0}
-        self.legacy_friends: list | None = legacy_friends
         self.games: List[Game] = []
         self.event_emitter = EventEmitter()
         self.on = self.event_emitter.on
 
     async def run(self) -> None:
+        """Prevents room connections from stopping and "starts" the bot"""
+
         tasks = []
 
         for game in self.games:
@@ -46,53 +45,92 @@ class BonkBot:
 
         await asyncio.gather(*tasks)
 
-    def create_game(
+    async def create_game(
         self,
         name="Test room",
         max_players=6,
         is_hidden=False,
         password="",
         min_level=0,
-        max_level=999
+        max_level=999,
+        server=Servers.Warsaw()
     ) -> Game:
-        return Game(
+        """
+        Host a bonk.io game.
+
+        :param name: Name of the room. It can only be a string. The default is "Test room".
+        :param max_players: The amount of players that can join the game. The amount should be in range [1, 8] (def=6).
+        :param is_hidden: Indicates whether the game is hidden or not. True or False. Default is False.
+        :param password: The password that is required from other players to join the game. Default is "" (no password).
+        :param min_level: The minimal level that is required from other players to join the game. Default is 0.
+        :param max_level: The maximal level that is required from other players to join the game. Default is 999.
+        :param server: The server to join the game. Default is Servers.Warsaw().
+
+        Example usage::
+
+            bot = bonk_account_login("name", "pass")
+
+            async def main():
+                game = await bot.create_game()
+                await bot.run()
+
+            asyncio.run(main())
+        """
+
+        if max_players < 1 or max_players > 8:
+            raise ValueError("Max players must be between 1 and 8")
+        if min_level > self.get_level():
+            raise ValueError("Minimal cannot be greater than the account level")
+        if max_level < self.get_level():
+            raise ValueError("Maximum level cannot be lower than the account level")
+        if not (
+            isinstance(server, Servers.Stockholm) or
+            isinstance(server, Servers.Warsaw) or
+            isinstance(server, Servers.Brazil) or
+            isinstance(server, Servers.SanFrancisco) or
+            isinstance(server, Servers.Atlanta) or
+            isinstance(server, Servers.Mississippi) or
+            isinstance(server, Servers.Dallas) or
+            isinstance(server, Servers.Frankfurt) or
+            isinstance(server, Servers.London) or
+            isinstance(server, Servers.NewYork) or
+            isinstance(server, Servers.Seattle) or
+            isinstance(server, Servers.Seoul) or
+            isinstance(server, Servers.Sydney)
+        ):
+            raise ValueError("Server param is not a server")
+
+        game = Game(
             self,
             name,
-            socketio.AsyncClient(ssl_verify=False, logger=True, engineio_logger=True),
+            socketio.AsyncClient(ssl_verify=False),
             True,
             Modes.Classic(),
             True,
             self.event_emitter,
-            game_create_params=[name, max_players, is_hidden, password, min_level, max_level]
+            game_create_params=[name, max_players, is_hidden, password, min_level, max_level, server]
         )
+        await game.connect()
 
-    def get_creation_date(self) -> datetime.datetime or str:
-        if self.is_guest:
-            raise BotIsGuestError("Cannot get creation date since bot uses guest account")
-
-        return db_id_to_date(self.user_id)
+        return game
 
     def get_level(self) -> int:
+        """Returns account level from its XP"""
         if self.is_guest:
             return 0
 
         return int((self.xp / 100) ** 0.5 + 1)
 
-    def get_friend_list(self) -> FriendList:
-        if self.is_guest:
-            raise BotIsGuestError("Cannot get friend list since bot uses guest account")
+    @staticmethod
+    def get_b2_maps(request: str, by_name=True, by_author=True) -> List[Bonk2Map]:
+        """
+        Returns list of bonk 2 maps.
 
-        data = session.post(
-            links["friends"],
-            {
-                "token": self.token,
-                "task": "getfriends"
-            }
-        ).json()
+        :param request: Input string along which the search is performed.
+        :param by_name: True if you want to search map by its name. Default is True.
+        :param by_author: True if you want to search map by its author. Default is True.
+        """
 
-        return FriendList(self, self.token, data)
-
-    def get_b2_maps(self, request: str, by_name=True, by_author=False) -> List[BonkMap]:
         data = session.post(
             links["map_get_b2"],
             {
@@ -108,57 +146,31 @@ class BonkBot:
             raise ValueError("Invalid options for map searching")
 
         return [
-            BonkMap(
-                self.token,
+            Bonk2Map(
                 bonk_map["id"],
                 bonk_map["leveldata"],
-                bonk_map["authorname"],
                 bonk_map["name"],
+                bonk_map["authorname"],
                 bonk_map["publisheddate"],
-                True,
                 bonk_map["vu"],
                 bonk_map["vd"]
             )
             for bonk_map in data["maps"]
         ]
 
-    def get_b1_maps(self, request: str, by_name: bool, by_author: bool) -> List[BonkMap]:
+    # TODO
+    def get_b1_maps(self, request: str, by_name: bool, by_author: bool) -> List[OwnMap]:
         pass
 
-    def get_own_maps(self) -> List[BonkMap]:
-        if self.is_guest:
-            raise BotIsGuestError("Cannot get own maps since bot uses guest account")
-
-        data = session.post(
-            "https://bonk2.io/scripts/map_getown.php",
-            {
-                "token": self.token,
-                "startingfrom": "0"
-            }
-        ).json()
-
-        return [
-            BonkMap(
-                self.token,
-                bonk_map["id"],
-                bonk_map["leveldata"],
-                bonk_map["authorname"],
-                bonk_map["name"],
-                bonk_map["creationdate"],
-                bonk_map["published"] == 1,
-                bonk_map["vu"],
-                bonk_map["vd"]
-            )
-            for bonk_map in data["maps"]
-        ]
-
     def get_rooms(self) -> List[Room]:
+        """Returns list of rooms in the bonk.io room list"""
+
         data = session.post(
             links["rooms"],
             {
                 "version": PROTOCOL_VERSION,
                 "gl": "n",
-                "token": self.token
+                "token": ""
             }
         ).json()
 
@@ -177,7 +189,94 @@ class BonkBot:
         ]
 
 
-def bonk_account_login(username: str, password: str) -> BonkBot:
+class AccountBonkBot(BonkBot):
+    """
+    Bot class for bonk.io account
+
+    :param token: session token that is received when logging into bonk.io account and required for some bonk api calls
+    :param user_id: account database ID
+    :param username: account name
+    :param is_guest: whether account is guest or not (False by default since class is used by bonk.io account)
+    :param xp: the amount of xp on account
+    :param legacy_friends: bonk 1 (flash version) friends of the account
+    """
+
+    def __init__(self, token: str, user_id: int, username: str, is_guest: bool, xp: int, legacy_friends: list) -> None:
+        super().__init__(username, is_guest, xp)
+        self.token = token
+        self.user_id = user_id
+        self.legacy_friends = legacy_friends
+
+    def get_creation_date(self) -> datetime.datetime or str:
+        """Returns account creation date from its DBID"""
+
+        return db_id_to_date(self.user_id)
+
+    def get_own_maps(self) -> List[OwnMap]:
+        """Returns list of maps created on the account"""
+
+        data = session.post(
+            "https://bonk2.io/scripts/map_getown.php",
+            {
+                "token": self.token,
+                "startingfrom": "0"
+            }
+        ).json()
+
+        return [
+            OwnMap(
+                self.token,
+                bonk_map["id"],
+                bonk_map["leveldata"],
+                bonk_map["name"],
+                bonk_map["creationdate"],
+                bonk_map["published"] == 1,
+                bonk_map["vu"],
+                bonk_map["vd"]
+            )
+            for bonk_map in data["maps"]
+        ]
+
+    def get_friend_list(self) -> FriendList:
+        """Returns account friend list that contains friends and friend requests"""
+
+        data = session.post(
+            links["friends"],
+            {
+                "token": self.token,
+                "task": "getfriends"
+            }
+        ).json()
+
+        return FriendList(self, self.token, data)
+
+
+class GuestBonkBot(BonkBot):
+    """
+    Bot class for bonk.io guest account
+
+    :param username: guest account name
+    :param is_guest: whether account is guest or not (True by default since class is used by bonk.io guest account)
+    :param xp: the amount of xp on account (0 by default)
+    """
+
+    def __init__(self, username: str, is_guest: bool, xp: int) -> None:
+        super().__init__(username, is_guest, xp)
+
+
+def bonk_account_login(username: str, password: str) -> AccountBonkBot:
+    """
+    Creates bot on bonk.io account
+
+    :param username: bonk.io account username
+    :param password: bonk.io account password
+
+    Example usage::
+
+        bot = bonk_account_login("name", "pass")
+        print(bot.username)
+    """
+
     data = session.post(
         links["login"],
         {
@@ -192,7 +291,7 @@ def bonk_account_login(username: str, password: str) -> BonkBot:
     elif data.get("e") == "password":
         raise BonkLoginError(f"Invalid password for account {username}")
 
-    return BonkBot(
+    return AccountBonkBot(
         data["token"],
         data["id"],
         data["username"],
@@ -202,25 +301,26 @@ def bonk_account_login(username: str, password: str) -> BonkBot:
     )
 
 
-def bonk_guest_login(username: str) -> BonkBot:
+def bonk_guest_login(username: str) -> GuestBonkBot:
+    """
+    Creates bot without bonk.io account (some methods like get_friend_list() are unavailable)
+
+    Example usage::
+
+        bot = bonk_account_login("name", "pass")
+        print(bot.username
+
+    :param username: guest username
+    """
+
     if not (len(username) in range(2, 16)):
         raise BonkLoginError("Username must be between 2 and 16 characters")
 
-    return BonkBot(
-        None,
-        None,
-        username,
-        True,
-        None,
-        None
-    )
+    return GuestBonkBot(username, False, 0)
 
 
 class BonkLoginError(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
+    """Raised when bonk login is failed"""
 
-
-class BotIsGuestError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message

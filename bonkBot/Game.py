@@ -7,7 +7,7 @@ from typing import List, Union
 from pymitter import EventEmitter
 
 from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
-from .Settings import PROTOCOL_VERSION, session, links
+from .Settings import PROTOCOL_VERSION, links
 from .Types import Servers, Modes, Teams
 from .Parsers import team_from_number, mode_from_short_name
 
@@ -418,12 +418,13 @@ class Game:
         self.__is_connected = True
 
     async def __join(self, room_id: int, password="") -> None:
-        room_data = session.post(
-            links["get_room_address"],
-            {
+        async with self.bot.aiohttp_session.post(
+            url=links["get_room_address"],
+            data={
                 "id": room_id
             }
-        ).json()
+        ) as resp:
+            room_data = await resp.json()
 
         if room_data.get("e") == "ratelimited":
             raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests")

@@ -1,6 +1,3 @@
-import requests
-
-session = requests.session()
 PROTOCOL_VERSION = 49
 links = {
     "login": "https://bonk2.io/scripts/login_legacy.php",

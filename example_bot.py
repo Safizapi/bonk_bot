@@ -1,10 +1,10 @@
 import asyncio
 
-from bonkBot.BonkBot import bonk_guest_login
+from bonkBot.BonkBot import bonk_account_login
 from bonkBot.Game import Game, Player, Message
 from bonkBot.Types import Servers, Modes
 
-bot = bonk_guest_login("Safizapi")
+bot = bonk_account_login("Safizapi_", "I've just changed password")
 
 
 @bot.on("game_connect")

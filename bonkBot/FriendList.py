@@ -1,7 +1,7 @@
 import datetime
 from typing import List, Union
 
-from .Settings import session, links
+from .Settings import links
 from .Parsers import db_id_to_date
 from .Game import Game
 
@@ -11,30 +11,29 @@ class Friend:
     Class for holding account's friends.
 
     :param bot: bot class that uses the account.
-    :param token: bonk.io account session token.
-    :param user_id: account database ID.
-    :param username: account username.
+    :param user_id: friend's account database ID.
+    :param username: friend's account username.
     :param room_id: the room ID where friend is playing.
     """
 
-    def __init__(self, bot, token: str, user_id: int, username: str, room_id: Union[int, None]) -> None:
+    def __init__(self, bot, user_id: int, username: str, room_id: Union[int, None]) -> None:
         self.bot = bot
         self.user_id: int = user_id
         self.username: str = username
         self.room_id: Union[int, None] = room_id
-        self.__token: str = token
 
-    def unfriend(self) -> None:
+    async def unfriend(self) -> None:
         """Remove friend from account friend list."""
 
-        response = session.post(
-            links["friends"],
-            {
-                "token": self.__token,
+        async with self.bot.aiohttp_session.post(
+            url=links["friends"],
+            data={
+                "token": self.bot.token,
                 "task": "unfriend",
                 "theirid": self.user_id
             }
-        ).json()
+        ) as resp:
+            response = await resp.json()
 
         print(response)
 
@@ -74,43 +73,45 @@ class FriendRequest:
     """
     Class for holding account's friend requests.
 
-    :param token: bonk.io account session token.
+    :param bot: bot class that uses account.
     :param user_id: account database ID.
     :param username: account username.
     :param date: the date of sending friend request.
     """
 
-    def __init__(self, token: str, user_id: int, username: str, date: str) -> None:
+    def __init__(self, bot, user_id: int, username: str, date: str) -> None:
+        self.bot = bot
         self.user_id: int = user_id
         self.username: str = username
         self.date: str = date
-        self.__token: str = token
 
-    def accept(self) -> None:
+    async def accept(self) -> None:
         """Accept friend request."""
 
-        response = session.post(
-            links["friends"],
-            {
-                "token": self.__token,
+        async with self.bot.aiohttp_session.post(
+            url=links["friends"],
+            data={
+                "token": self.bot.token,
                 "task": "accept",
                 "theirid": self.user_id
             }
-        ).json()
+        ) as resp:
+            response = await resp.json()
 
         print(response)
 
-    def delete(self) -> None:
+    async def delete(self) -> None:
         """Decline friend request."""
 
-        response = session.post(
-            links["friends"],
-            {
-                "token": self.__token,
+        async with self.bot.aiohttp_session.post(
+            url=links["friends"],
+            data={
+                "token": self.bot.token,
                 "task": "deleterequest",
                 "theirid": self.user_id
             }
-        ).json()
+        ) as resp:
+            response = await resp.json()
 
         print(response)
 
@@ -120,13 +121,11 @@ class FriendList:
     Class for routing Friend and FriendRequest classes. Account's full friend list.
 
     :param bot: bot class that uses the account.
-    :param token: bonk.io account session token.
     :param raw_data: json data about account's friends and friend requests.
     """
 
-    def __init__(self, bot, token: str, raw_data: dict) -> None:
+    def __init__(self, bot, raw_data: dict) -> None:
         self.bot = bot
-        self.__token: str = token
         self.__raw_data: dict = raw_data
 
     def get_friends(self) -> List[Friend]:
@@ -135,7 +134,6 @@ class FriendList:
         return [
             Friend(
                 self.bot,
-                self.__token,
                 friend["id"],
                 friend["name"],
                 friend["roomid"]
@@ -147,7 +145,7 @@ class FriendList:
 
         return [
             FriendRequest(
-                self.__token,
+                self.bot,
                 request["id"],
                 request["name"],
                 request["date"]

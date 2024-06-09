@@ -1,11 +1,11 @@
-from bonkBot.Settings import session, links
+from bonkBot.Settings import links
 
 
 class OwnMap:
     """
     Class for holding bot's account own maps.
 
-    :param token: account session token.
+    :param bot: bot class that uses account.
     :param map_id: map database ID.
     :param map_data: encoded info about map.
     :param name: name of the map.
@@ -17,7 +17,7 @@ class OwnMap:
 
     def __init__(
         self,
-        token: str,
+        bot,
         map_id: int,
         map_data: str,
         name: str,
@@ -26,6 +26,7 @@ class OwnMap:
         votes_up: int,
         votes_down: int
     ) -> None:
+        self.bot = bot
         self.map_id: int = map_id
         self.map_data: str = map_data
         self.name: str = name
@@ -33,18 +34,18 @@ class OwnMap:
         self.is_published: bool = is_published
         self.votes_up: int = votes_up
         self.votes_down: int = votes_down
-        self.__token: str = token
 
-    def delete(self) -> None:
+    async def delete(self) -> None:
         """Deletes bot's account own map."""
 
-        response = session.post(
-            links["map_delete"],
-            {
-                "token": self.__token,
+        async with self.bot.aiohttp_session.post(
+            url=links["map_delete"],
+            data={
+                "token": self.bot.token,
                 "mapid": self.map_id,
             }
-        ).json()
+        ) as resp:
+            response = await resp.json()
 
         print(response)
 

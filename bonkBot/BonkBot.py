@@ -1,11 +1,13 @@
 import datetime
 from typing import List
+import requests
 import socketio
 import asyncio
 from pymitter import EventEmitter
 import nest_asyncio
+import aiohttp
 
-from .Settings import session, PROTOCOL_VERSION, links
+from .Settings import PROTOCOL_VERSION, links
 from .FriendList import FriendList
 from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
 from .Room import Room
@@ -26,14 +28,15 @@ class BonkBot:
     :param xp: amount of xp on bot's account.
     """
 
-    def __init__(self, username: str, is_guest: bool, xp: int) -> None:
+    def __init__(self, username: str, is_guest: bool, xp: int, aiohttp_session: aiohttp.ClientSession) -> None:
         self.username: str = username
         self.is_guest: bool = is_guest
         self.xp: int = xp
         self.avatar: dict = {"layers": [], "bc": 0}
         self.games: List[Game] = []
-        self.event_emitter = EventEmitter()
-        self.on = self.event_emitter.on
+        self.event_emitter: EventEmitter = EventEmitter()
+        self.on: EventEmitter.on = self.event_emitter.on
+        self.aiohttp_session: aiohttp.ClientSession = aiohttp_session
 
     async def run(self) -> None:
         """Prevents room connections from stopping and "starts" the bot."""
@@ -127,8 +130,7 @@ class BonkBot:
 
         return int((self.xp / 100) ** 0.5 + 1)
 
-    @staticmethod
-    def get_b2_maps(request: str, by_name=True, by_author=True) -> List[Bonk2Map]:
+    async def get_b2_maps(self, request: str, by_name=True, by_author=True) -> List[Bonk2Map]:
         """
         Returns list of bonk2 maps.
 
@@ -137,16 +139,17 @@ class BonkBot:
         :param by_author: True if you want to search map by its author. Default is True.
         """
 
-        data = session.post(
-            links["map_get_b2"],
-            {
+        async with self.aiohttp_session.post(
+            url=links["map_get_b2"],
+            data={
                 "searchauthor": str(by_author).lower(),
                 "searchmapname": str(by_name).lower(),
                 "searchsort": "best",
                 "searchstring": request,
                 "startingfrom": 0
             }
-        ).json()
+        ) as resp:
+            data = await resp.json()
 
         if data.get("e") == "invalid_options":
             raise ValueError("Invalid options for map searching")
@@ -169,17 +172,18 @@ class BonkBot:
     # def get_b1_maps(request: str, by_name=True, by_author=True) -> List[Bonk1Map]:
     #     pass
 
-    def get_rooms(self) -> List[Room]:
+    async def get_rooms(self) -> List[Room]:
         """Returns list of rooms in the bonk.io room list."""
 
-        data = session.post(
-            links["rooms"],
-            {
+        async with self.aiohttp_session.post(
+            url=links["rooms"],
+            data={
                 "version": PROTOCOL_VERSION,
                 "gl": "n",
                 "token": ""
             }
-        ).json()
+        ) as resp:
+            data = await resp.json()
 
         return [
             Room(
@@ -208,8 +212,17 @@ class AccountBonkBot(BonkBot):
     :param legacy_friends: bonk 1 (flash version) friends of the account.
     """
 
-    def __init__(self, token: str, user_id: int, username: str, is_guest: bool, xp: int, legacy_friends: list) -> None:
-        super().__init__(username, is_guest, xp)
+    def __init__(
+        self,
+        token: str,
+        user_id: int,
+        username: str,
+        is_guest: bool,
+        xp: int,
+        legacy_friends: list,
+        aiohttp_session: aiohttp.ClientSession,
+    ) -> None:
+        super().__init__(username, is_guest, xp, aiohttp_session)
         self.token = token
         self.user_id = user_id
         self.legacy_friends = legacy_friends
@@ -219,20 +232,21 @@ class AccountBonkBot(BonkBot):
 
         return db_id_to_date(self.user_id)
 
-    def get_own_maps(self) -> List[OwnMap]:
+    async def get_own_maps(self) -> List[OwnMap]:
         """Returns list of maps created on the account."""
 
-        data = session.post(
-            "https://bonk2.io/scripts/map_getown.php",
-            {
+        async with self.aiohttp_session.post(
+            url=links["map_get_own"],
+            data={
                 "token": self.token,
                 "startingfrom": "0"
             }
-        ).json()
+        ) as resp:
+            data = await resp.json()
 
         return [
             OwnMap(
-                self.token,
+                self,
                 bonk_map["id"],
                 bonk_map["leveldata"],
                 bonk_map["name"],
@@ -244,18 +258,18 @@ class AccountBonkBot(BonkBot):
             for bonk_map in data["maps"]
         ]
 
-    def get_friend_list(self) -> FriendList:
+    async def get_friend_list(self) -> FriendList:
         """Returns account friend list that contains friends and friend requests."""
 
-        data = session.post(
-            links["friends"],
-            {
+        async with self.aiohttp_session.post(
+            url=links["friends"],
+            data={
                 "token": self.token,
                 "task": "getfriends"
             }
-        ).json()
-
-        return FriendList(self, self.token, data)
+        ) as resp:
+            data = await resp.json()
+        return FriendList(self, data)
 
 
 class GuestBonkBot(BonkBot):
@@ -267,8 +281,8 @@ class GuestBonkBot(BonkBot):
     :param xp: the amount of xp on account (0 by default).
     """
 
-    def __init__(self, username: str, is_guest: bool, xp: int) -> None:
-        super().__init__(username, is_guest, xp)
+    def __init__(self, username: str, is_guest: bool, xp: int, aiohttp_session: aiohttp.ClientSession) -> None:
+        super().__init__(username, is_guest, xp, aiohttp_session)
 
 
 def bonk_account_login(username: str, password: str) -> AccountBonkBot:
@@ -284,7 +298,7 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
         print(bot.username)
     """
 
-    data = session.post(
+    data = requests.post(
         links["login"],
         {
             "username": username,
@@ -304,7 +318,8 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
         data["username"],
         False,
         data["xp"],
-        data["legacyFriends"].split("#")
+        data["legacyFriends"].split("#"),
+        aiohttp.ClientSession()
     )
 
 
@@ -324,7 +339,7 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
     if not (len(username) in range(2, 16)):
         raise BonkLoginError("Username must be between 2 and 16 characters")
 
-    return GuestBonkBot(username, True, 0)
+    return GuestBonkBot(username, True, 0, aiohttp.ClientSession())
 
 
 class BonkLoginError(Exception):

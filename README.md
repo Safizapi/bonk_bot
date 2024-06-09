@@ -53,3 +53,27 @@ async def main():
 
 asyncio.run(main())
 ```
+## Events
+game_join: triggered when bot joins the room
+player_join: triggered when some player joins the room
+player_left: triggered when some player leaves the room
+player_ready: triggered when some player presses ready button
+error: triggered when some connection error is occured
+player_team_change: triggered when some player changes team
+team_lock: triggered when host locks teams
+team_unlock: triggered when host unlocks teams
+message: triggered when some player sends message
+lobby_load: triggered when bot receives data about some game info
+bot_kick: triggered when bot is kicked from the game
+bot_ban triggered when bot is banned from the game
+player_kick: triggered when some player is kicked from the room
+player_ban: triggered when some player is banned from the room
+mode_change: triggered when host changes mode
+player_balance: triggered when some player is balanced
+teams_turn_on: triggered when host turns on teams
+teams_turn_off: triggered when host turns off teams
+host_change: triggered when game host changes
+new_room_name: triggered when host changes room name
+new_room_password: triggered when host sets a new password for game
+room_password_clear: triggered when host clears game password
+game_disconnect: triggered when bot disconnects from the game

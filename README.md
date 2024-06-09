@@ -63,7 +63,6 @@ asyncio.run(main())
 - **team_lock**: triggered when host locks teams
 - **team_unlock**: triggered when host unlocks teams
 - **message**: triggered when some player sends message
-- **lobby_load**: triggered when bot receives data about some game info
 - **bot_kick**: triggered when bot is kicked from the game
 - **bot_ban**: triggered when bot is banned from the game
 - **player_kick**: triggered when some player is kicked from the room

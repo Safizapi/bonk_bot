@@ -674,8 +674,6 @@ class Game:
             self.team_lock = data["tl"]
             self.rounds = data["wl"]
 
-            self.__event_emitter.emit("lobby_load", self)
-
         @self.__socket_client.on(24)
         async def on_player_kick(short_id: int, kick_only: bool) -> None:
             player = [player for player in self.players if player.short_id == short_id][0]

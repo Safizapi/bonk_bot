@@ -1,4 +1,4 @@
-from bonkBot.Settings import links
+from .Settings import links
 
 
 class OwnMap:

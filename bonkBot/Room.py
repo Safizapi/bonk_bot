@@ -1,4 +1,5 @@
 import socketio
+from typing import Union
 
 from .Game import Game
 from .Types import Modes
@@ -27,7 +28,7 @@ class Room:
         players: int,
         max_players: int,
         has_password: bool,
-        mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football,
+        mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football],
         min_level: int,
         max_level: int
     ) -> None:
@@ -37,7 +38,7 @@ class Room:
         self.players: int = players
         self.max_players: int = max_players
         self.has_password: bool = has_password
-        self.mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football = mode
+        self.mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football] = mode
         self.min_level: int = min_level
         self.max_level: int = max_level
 

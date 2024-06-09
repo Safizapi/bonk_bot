@@ -3,7 +3,7 @@ import random
 from random import shuffle
 from string import ascii_lowercase
 import socketio
-from typing import List
+from typing import List, Union
 from pymitter import EventEmitter
 
 from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
@@ -35,11 +35,11 @@ class Game:
         room_name: str,
         socket_client: socketio.AsyncClient,
         is_host: bool,
-        mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football,
+        mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football],
         is_created_by_bot: bool,
         event_emitter: EventEmitter,
-        game_create_params: list | None = None,
-        game_join_params: list | None = None,
+        game_create_params: Union[list, None] = None,
+        game_join_params: Union[list, None] = None,
         is_connected: bool = False
     ) -> None:
         self.bot = bot
@@ -50,17 +50,17 @@ class Game:
         self.is_host: bool = is_host
         self.is_bot_ready: bool = False
         self.is_banned: bool = False
-        self.mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football = mode
-        self.teams_toggle: bool = False
-        self.teams_lock_toggle: bool = False
+        self.mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football] = mode
+        self.extended_teams: bool = False
+        self.team_lock: bool = False
         self.rounds: int = 3
-        self.bonk_map: OwnMap | None = None
+        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map, None] = None
         self.__initial_state: str = ""
         self.__socket_client: socketio.AsyncClient = socket_client
         self.__event_emitter: EventEmitter = event_emitter
         self.__is_created_by_bot: bool = is_created_by_bot
-        self.__game_create_params: list | None = game_create_params
-        self.__game_join_params: list | None = game_join_params
+        self.__game_create_params: Union[list, None] = game_create_params
+        self.__game_join_params: Union[list, None] = game_join_params
         self.__is_connected: bool = is_connected
 
     async def connect(self) -> None:
@@ -94,7 +94,7 @@ class Game:
 
     async def change_bot_team(
         self,
-        team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow]
     ) -> None:
         """
         Changes current bot team.
@@ -135,7 +135,7 @@ class Game:
                 "teamLock": flag
             }
         )
-        self.teams_lock_toggle = True
+        self.team_lock = True
 
     async def send_message(self, message: str) -> None:
         """
@@ -168,7 +168,7 @@ class Game:
 
     async def set_mode(
         self,
-        mode: Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football
+        mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football]
     ) -> None:
         """
         Change game mode.
@@ -215,7 +215,7 @@ class Game:
         )
         self.rounds = rounds
 
-    async def set_map(self, bonk_map: OwnMap | Bonk2Map | Bonk1Map) -> None:
+    async def set_map(self, bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map]) -> None:
         """
         Change game map.
 
@@ -255,7 +255,7 @@ class Game:
                 "t": flag
             }
         )
-        self.teams_toggle = flag
+        self.extended_teams = flag
 
     async def record(self) -> None:
         """Record the last 15 seconds of round."""
@@ -512,7 +512,7 @@ class Game:
 
             for x in self.players:
                 if x.team.number > 1:
-                    self.teams_toggle = True
+                    self.extended_teams = True
 
             self.__event_emitter.emit("game_join", self)
 
@@ -652,7 +652,7 @@ class Game:
 
         @self.__socket_client.on(19)
         async def on_team_lock(flag: bool) -> None:
-            self.teams_lock_toggle = flag
+            self.team_lock = flag
 
             if flag:
                 self.__event_emitter.emit("team_lock", self)
@@ -670,7 +670,7 @@ class Game:
         @self.__socket_client.on(21)
         async def on_lobby_load(data: dict) -> None:
             self.mode = mode_from_short_name(data["mo"])
-            self.teams_lock_toggle = data["tl"]
+            self.team_lock = data["tl"]
             self.rounds = data["wl"]
 
             self.__event_emitter.emit("lobby_load", self)
@@ -713,7 +713,7 @@ class Game:
 
         @self.__socket_client.on(39)
         async def on_teams_toggle(flag: bool) -> None:
-            self.teams_toggle = flag
+            self.extended_teams = flag
 
             if flag:
                 self.__event_emitter.emit("teams_turn_on", self)
@@ -781,7 +781,7 @@ class Player:
         level: int,
         is_ready: bool,
         is_tabbed: bool,
-        team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow,
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow],
         short_id: int,
         avatar: dict
     ) -> None:
@@ -793,7 +793,7 @@ class Player:
         self.level: int = level
         self.is_ready: bool = is_ready
         self.is_tabbed: bool = is_tabbed
-        self.team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow = team
+        self.team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow] = team
         self.balanced_by: int = 0
         self.short_id: int = short_id
         self.avatar: dict = avatar
@@ -854,7 +854,7 @@ class Player:
 
     async def move_to_team(
         self,
-        team: Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow]
     ) -> None:
         """
         Move player to another team.

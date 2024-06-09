@@ -1,11 +1,12 @@
 import datetime
 import json
+from typing import Union
 
 from .Types import Teams, Modes
 
 
 # Credits to https://shaunx777.github.io/dbid2date/
-def db_id_to_date(db_id: int) -> datetime.datetime or str:
+def db_id_to_date(db_id: int) -> Union[datetime.datetime, str]:
     """
     Returns approximate account date creating from account database ID.
 
@@ -38,7 +39,9 @@ def db_id_to_date(db_id: int) -> datetime.datetime or str:
     return datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def team_from_number(number: int) -> Teams.Spectator | Teams.FFA | Teams.Red | Teams.Blue | Teams.Green | Teams.Yellow:
+def team_from_number(
+    number: int
+) -> Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow]:
     """
     Returns mode class from its number according to bonk.io api.
 
@@ -61,7 +64,7 @@ def team_from_number(number: int) -> Teams.Spectator | Teams.FFA | Teams.Red | T
 
 def mode_from_short_name(
     short_name: str
-) -> Modes.Classic | Modes.Arrows | Modes.DeathArrows | Modes.Grapple | Modes.VTOL | Modes.Football:
+) -> Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football]:
     """
     Returns mode class from its short name according to bonk.io api.
 

@@ -45,6 +45,12 @@ class BonkBot:
 
         await asyncio.gather(*tasks)
 
+    async def stop(self) -> None:
+        """Stops the bot."""
+
+        for game in self.games:
+            await game.leave()
+
     async def create_game(
         self,
         name="Test room",
@@ -305,11 +311,12 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
 def bonk_guest_login(username: str) -> GuestBonkBot:
     """
     Creates bot without bonk.io account (some methods like get_friend_list() are unavailable).
+    Note that guest account can change its nickname if someone in the game has the same nickname.
 
     Example usage::
 
-        bot = bonk_account_login("name", "pass")
-        print(bot.username
+        bot = bonk_account_login("name")
+        print(bot.username)
 
     :param username: guest username.
     """

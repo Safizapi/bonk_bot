@@ -1,5 +1,5 @@
 import datetime
-from typing import List
+from typing import List, Union
 
 from .Settings import session, links
 from .Parsers import db_id_to_date
@@ -17,11 +17,11 @@ class Friend:
     :param room_id: the room ID where friend is playing.
     """
 
-    def __init__(self, bot, token: str, user_id: int, username: str, room_id: int | None) -> None:
+    def __init__(self, bot, token: str, user_id: int, username: str, room_id: Union[int, None]) -> None:
         self.bot = bot
         self.user_id: int = user_id
         self.username: str = username
-        self.room_id: int | None = room_id
+        self.room_id: Union[int, None] = room_id
         self.__token: str = token
 
     def unfriend(self) -> None:
@@ -38,7 +38,7 @@ class Friend:
 
         print(response)
 
-    def get_creation_data(self) -> datetime.datetime | str:
+    def get_creation_data(self) -> Union[datetime.datetime, str]:
         """Get friend's account creation date."""
 
         return db_id_to_date(self.user_id)

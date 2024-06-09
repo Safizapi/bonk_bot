@@ -48,18 +48,16 @@ def team_from_number(
     :param number: the number of team in bonk.io api.
     """
 
-    if number == 0:
-        return Teams.Spectator()
-    if number == 1:
-        return Teams.FFA()
-    if number == 2:
-        return Teams.Red()
-    if number == 3:
-        return Teams.Blue()
-    if number == 4:
-        return Teams.Green()
-    if number == 5:
-        return Teams.Yellow()
+    teams = {
+        0: Teams.Spectator(),
+        1: Teams.FFA(),
+        2: Teams.Red(),
+        3: Teams.Blue(),
+        4: Teams.Green(),
+        5: Teams.Yellow(),
+    }
+
+    return teams[number]
 
 
 def mode_from_short_name(
@@ -71,15 +69,13 @@ def mode_from_short_name(
     :param short_name: mode short name in bonk.io api.
     """
 
-    if short_name == "b":
-        return Modes.Classic()
-    if short_name == "ar":
-        return Modes.Arrows()
-    if short_name == "ard":
-        return Modes.DeathArrows()
-    if short_name == "sp":
-        return Modes.Grapple()
-    if short_name == "v":
-        return Modes.VTOL()
-    if short_name == "f":
-        return Modes.Football()
+    modes = {
+        "b": Modes.Classic(),
+        "ar": Modes.Arrows(),
+        "ard": Modes.DeathArrows(),
+        "sp": Modes.Grapple(),
+        "v": Modes.VTOL(),
+        "f": Modes.Football(),
+    }
+
+    return modes[short_name]

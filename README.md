@@ -54,11 +54,11 @@ async def main():
 asyncio.run(main())
 ```
 ## Events
-game_join: triggered when bot joins the room
-player_join: triggered when some player joins the room
-player_left: triggered when some player leaves the room
-player_ready: triggered when some player presses ready button
-error: triggered when some connection error is occured
+- game_join: triggered when bot joins the room
+- player_join: triggered when some player joins the room
+- player_left: triggered when some player leaves the room
+- player_ready: triggered when some player presses ready button
+error: triggered when some connection error is occures
 player_team_change: triggered when some player changes team
 team_lock: triggered when host locks teams
 team_unlock: triggered when host unlocks teams

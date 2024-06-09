@@ -12,7 +12,7 @@ Go to your project's terminal and run the following command:
 ```
 pip install bonk_bot
 ```
-## Bot exmaple
+## Bot example
 ```py
 import asyncio
 

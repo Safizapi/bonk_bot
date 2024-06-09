@@ -334,6 +334,7 @@ class Game:
         async def connect():
             self.is_host = True
             new_peer_id = self.__get_peer_id()
+            self.__is_connected = True
 
             if not self.bot.is_guest:
                 await self.__socket_client.emit(
@@ -415,8 +416,6 @@ class Game:
         while not self.__is_connected:
             await asyncio.sleep(1)
 
-        self.__is_connected = True
-
     async def __join(self, room_id: int, password="") -> None:
         async with self.bot.aiohttp_session.post(
             url=links["get_room_address"],
@@ -431,6 +430,8 @@ class Game:
 
         @self.__socket_client.event
         async def connect():
+            self.__is_connected = True
+            
             if not self.bot.is_guest:
                 await self.__socket_client.emit(
                     13,
@@ -470,8 +471,6 @@ class Game:
 
         while not self.__is_connected:
             await asyncio.sleep(1)
-
-        self.__is_connected = True
 
     async def __keep_alive(self) -> None:
         while self.__is_connected:

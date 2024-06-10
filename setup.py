@@ -1,6 +1,6 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
-with open("README", "r") as f:
+with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
@@ -10,12 +10,5 @@ setup(
     license="MIT",
     long_description=long_description,
     author="Safizapi",
-    packages=[
-        "python-engineio",
-        "python-socketio",
-        "aiohttp",
-        "requests",
-        "nest-asyncio",
-        "pymitter"
-    ]
+    packages=find_packages(exclude=["tests"])
 )

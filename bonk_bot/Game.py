@@ -126,9 +126,6 @@ class Game:
         :param flag: on -> True (locked teams) | off -> False (free team switching).
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot lock teams due the lack of bot permissions")
-
         await self.__socket_client.emit(
             7,
             {
@@ -176,8 +173,6 @@ class Game:
         :param mode: one of the Modes class types.
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot set mode due the lack of bot permissions")
         if not (
             isinstance(mode, Modes.Classic) or
             isinstance(mode, Modes.Arrows) or
@@ -204,9 +199,6 @@ class Game:
         :param rounds: rounds that player has to reach to win the game.
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot set rounds due the lack of bot permissions")
-
         await self.__socket_client.emit(
             21,
             {
@@ -222,8 +214,6 @@ class Game:
         :param bonk_map: the map that is wanted to be played in the game.
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot change map due the lack of bot permissions")
         if not (
             isinstance(bonk_map, OwnMap) or
             isinstance(bonk_map, Bonk2Map) or
@@ -246,9 +236,6 @@ class Game:
         :param flag: on -> True (extended teams) | off -> False (only FFA).
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot toggle teams due the lack of bot permissions")
-
         await self.__socket_client.emit(
             32,
             {
@@ -269,9 +256,6 @@ class Game:
         :param new_room_name: new room name.
         """
 
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot change room name due the lack of bot permissions")
-
         await self.__socket_client.emit(
             52,
             {
@@ -286,9 +270,6 @@ class Game:
 
         :param new_password: new room password.
         """
-
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot change room password due the lack of bot permissions")
 
         await self.__socket_client.emit(
             53,
@@ -307,9 +288,6 @@ class Game:
 
     async def close(self) -> None:
         """Close the game."""
-
-        if not self.is_host:
-            raise BotIsNotAHostError("Cannot close game due the lack of bot permissions")
 
         await self.__socket_client.emit(50)
         await self.leave()
@@ -426,12 +404,12 @@ class Game:
             room_data = await resp.json()
 
         if room_data.get("e") == "ratelimited":
-            raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests")
+            raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests", self)
 
         @self.__socket_client.event
         async def connect():
             self.__is_connected = True
-            
+
             if not self.bot.is_guest:
                 await self.__socket_client.emit(
                     13,
@@ -594,8 +572,8 @@ class Game:
                             "q": False,
                             "tl": False,
                             "tea": False,
-                            "ga": "b",
-                            "mo": "b",
+                            "ga": self.mode.ga,
+                            "mo": self.mode.short_name,
                             "bal": [],
                             "GMMode": ""
                         }
@@ -620,15 +598,16 @@ class Game:
 
         @self.__socket_client.on(16)
         async def on_error(error) -> None:
-            exception = GameConnectionError(error)
+            exception = GameConnectionError(error, self)
 
             if error == "invalid_params":
                 exception = GameConnectionError(
                     "Invalid parameters. It means you've configured bot wrong, maybe your avatar. "
-                    "If you're sure this is library issue, send pull request on https://github.com/Safizapi/bonkBot"
+                    "If you're sure this is library issue, send pull request on https://github.com/Safizapi/bonk_bot",
+                    self
                 )
 
-            self.__event_emitter.emit("error", exception)
+            self.__event_emitter.emit("error", self, error)
 
             if error in [
                 "invalid_params",
@@ -636,7 +615,9 @@ class Game:
                 "room_full",
                 "players_xp_too_high",
                 "players_xp_too_low",
-                "guests_not_allowed"
+                "guests_not_allowed",
+                "already_in_this_room",
+                "room_not_found"
             ]:
                 await self.leave()
 
@@ -811,9 +792,6 @@ class Player:
     async def give_host(self) -> None:
         """Give the host permissions to player."""
 
-        if not self.game.is_host:
-            raise BotIsNotAHostError("Cannot give host due the lack of bot permissions")
-
         await self.__socket_client.emit(
             34,
             {
@@ -825,9 +803,6 @@ class Player:
     async def kick(self) -> None:
         """Kick player from game."""
 
-        if not self.game.is_host:
-            raise BotIsNotAHostError("Cannot kick player due the lack of bot permissions")
-
         await self.__socket_client.emit(
             9,
             {
@@ -838,9 +813,6 @@ class Player:
 
     async def ban(self) -> None:
         """Ban player from game."""
-
-        if not self.game.is_host:
-            raise BotIsNotAHostError("Cannot ban player due the lack of bot permissions")
 
         await self.__socket_client.emit(
             9,
@@ -859,8 +831,7 @@ class Player:
 
         :param team: Teams class that indicates player's team.
         """
-        if not self.game.is_host:
-            raise BotIsNotAHostError("Cannot move player due the lack of bot permissions")
+
         if not (
             isinstance(team, Teams.Spectator) or
             isinstance(team, Teams.FFA) or
@@ -887,8 +858,6 @@ class Player:
         :param percents: the percent you want to balance player by (in range [-100, 100]).
         """
 
-        if not self.game.is_host:
-            raise BotIsNotAHostError("Cannot balance player due the lack of bot permissions")
         if not (percents in range(-100, 101)):
             raise ValueError("Can't balance player: percents param is not in range [-100, 100]")
 
@@ -920,12 +889,6 @@ class Message:
 class GameConnectionError(Exception):
     """Raised when game connection has some error."""
 
-    def __init__(self, message: str) -> None:
-        self.message = message
-
-
-class BotIsNotAHostError(Exception):
-    """Raised when bot is trying to perform something which can only be done with host permissions."""
-
-    def __init__(self, message: str) -> None:
-        self.message = message
+    def __init__(self, message: str, game: Game) -> None:
+        self.message: str = message
+        self.game: Game = game

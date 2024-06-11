@@ -37,7 +37,7 @@ class Friend:
 
         print(response)
 
-    def get_creation_data(self) -> Union[datetime.datetime, str]:
+    def get_creation_date(self) -> Union[datetime.datetime, str]:
         """Get friend's account creation date."""
 
         return db_id_to_date(self.user_id)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bonk_bot"
-version = "1.0.3"
+version = "1.0.4"
 description = "Python API wrapper for bonk.io web game."
 
 readme = "README.md"

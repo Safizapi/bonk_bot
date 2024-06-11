@@ -646,7 +646,9 @@ class Game:
             _message = Message(message, author, self)
 
             self.messages.append(Message(message, author, self))
-            self.__event_emitter.emit("message", self, _message)
+
+            if not author.is_bot:
+                self.__event_emitter.emit("message", self, _message)
 
         @self.__socket_client.on(21)
         async def on_lobby_load(data: dict) -> None:
@@ -657,7 +659,6 @@ class Game:
         @self.__socket_client.on(24)
         async def on_player_kick(short_id: int, kick_only: bool) -> None:
             player = [player for player in self.players if player.short_id == short_id][0]
-            self.players.remove(player)
 
             if kick_only:
                 if player.is_bot:

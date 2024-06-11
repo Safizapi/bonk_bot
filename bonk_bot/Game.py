@@ -281,16 +281,21 @@ class Game:
 
     async def leave(self) -> None:
         """Disconnect from the game."""
+
         await self.__socket_client.disconnect()
         self.__is_connected = False
         self.players = []
         self.messages = []
+
+        self.__event_emitter.emit("game_disconnect", self)
 
     async def close(self) -> None:
         """Close the game."""
 
         await self.__socket_client.emit(50)
         await self.leave()
+
+        self.__event_emitter.emit("game_disconnect", self)
 
     async def wait(self) -> None:
         """Prevents socketio session from stopping. You don't need to use it."""
@@ -312,7 +317,6 @@ class Game:
         async def connect():
             self.is_host = True
             new_peer_id = self.__get_peer_id()
-            self.__is_connected = True
 
             if not self.bot.is_guest:
                 await self.__socket_client.emit(
@@ -366,6 +370,7 @@ class Game:
                         }
                     }
                 )
+            self.__is_connected = True
 
             self.players.append(
                 Player(
@@ -392,7 +397,7 @@ class Game:
         await self.__keep_alive()
 
         while not self.__is_connected:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
     async def __join(self, room_id: int, password="") -> None:
         async with self.bot.aiohttp_session.post(
@@ -408,8 +413,6 @@ class Game:
 
         @self.__socket_client.event
         async def connect():
-            self.__is_connected = True
-
             if not self.bot.is_guest:
                 await self.__socket_client.emit(
                     13,
@@ -441,6 +444,8 @@ class Game:
                     }
                 )
 
+            self.__is_connected = True
+
         self.__event_emitter.emit("game_connect", self)
         await self.__socket_events()
 
@@ -448,7 +453,7 @@ class Game:
         await self.__keep_alive()
 
         while not self.__is_connected:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
     async def __keep_alive(self) -> None:
         while self.__is_connected:
@@ -485,7 +490,7 @@ class Game:
                 ) for player in players if player is not None
             ]
 
-            bot = [player for player in self.players if player.username == self.bot.username and not player.is_guest][0]
+            bot = [player for player in self.players if player.username == self.bot.username and player.level == self.bot.get_level()][0]
             self.players[self.players.index(bot)].is_bot = True
 
             for x in self.players:
@@ -724,10 +729,6 @@ class Game:
                 self.__event_emitter.emit("new_room_password", self)
             else:
                 self.__event_emitter.emit("room_password_clear", self)
-
-        @self.__socket_client.event
-        async def disconnect() -> None:
-            self.__event_emitter.emit("game_disconnect", self)
 
 
 class Player:

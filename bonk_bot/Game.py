@@ -6,6 +6,7 @@ import socketio
 from typing import List, Union
 from pymitter import EventEmitter
 
+from .Avatar import Avatar
 from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
 from .Settings import PROTOCOL_VERSION, links
 from .Types import Servers, Modes, Teams
@@ -338,10 +339,7 @@ class Game:
                         "quick": False,
                         "mode": "custom",
                         "token": self.bot.token,
-                        "avatar": {
-                            "layers": [],
-                            "bc": 4492031
-                        }
+                        "avatar": self.bot.main_avatar.json_data
                     }
                 )
             else:
@@ -364,10 +362,7 @@ class Game:
                         "quick": False,
                         "mode": "custom",
                         "guestName": self.bot.username,
-                        "avatar": {
-                            "layers": [],
-                            "bc": 4492031
-                        }
+                        "avatar": self.bot.main_avatar.json_data
                     }
                 )
             self.__is_connected = True
@@ -386,7 +381,7 @@ class Game:
                     False,
                     Teams.FFA(),
                     0,
-                    self.bot.avatar
+                    self.bot.main_avatar
                 )
             )
 
@@ -425,7 +420,7 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "token": self.bot.token,
-                        "avatar": self.bot.avatar
+                        "avatar": self.bot.main_avatar.json_data
                     }
                 )
             else:
@@ -440,7 +435,7 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "guestName": self.bot.username,
-                        "avatar": self.bot.avatar
+                        "avatar": self.bot.main_avatar.json_data
                     }
                 )
 
@@ -485,7 +480,7 @@ class Game:
                         player["tabbed"],
                         team_from_number(player["team"]),
                         players.index(player),
-                        player["avatar"]
+                        Avatar(self.bot, player["avatar"])
                     )
                 ) for player in players if player is not None
             ]
@@ -522,7 +517,7 @@ class Game:
                 False,
                 Teams.FFA(),
                 short_id,
-                avatar
+                Avatar(self.bot, avatar)
             )
 
             self.players.append(joined_player)
@@ -764,7 +759,7 @@ class Player:
         is_tabbed: bool,
         team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow],
         short_id: int,
-        avatar: dict
+        avatar: Avatar
     ) -> None:
         self.bot = bot
         self.is_bot: bool = is_bot
@@ -777,7 +772,7 @@ class Player:
         self.team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow] = team
         self.balanced_by: int = 0
         self.short_id: int = short_id
-        self.avatar: dict = avatar
+        self.avatar: Avatar = avatar
         self.__socket_client: socketio.AsyncClient = socket_client
         self.__peer_id: str = peer_id
 

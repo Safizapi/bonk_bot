@@ -1,3 +1,6 @@
+import base64
+import datetime
+import json
 import struct
 from typing import Union
 from urllib.parse import unquote_plus
@@ -26,7 +29,7 @@ def parse_avatar(bot, avatar: str):
 
     _ = peek(7)
 
-    shapes_count = (int.from_bytes(peek(1)) - 1) // 2
+    shapes_count = (int.from_bytes(peek(1), "big") - 1) // 2
     shapes = []
     _ = peek(3)
     if shapes_count > 0:
@@ -34,21 +37,21 @@ def parse_avatar(bot, avatar: str):
         for i in range(shapes_count):
             shape = dict()
 
-            shape["id"] = int.from_bytes(peek(1))
-            shape["scale"] = struct.unpack('>f', peek(4))[0]
-            shape["angle"] = struct.unpack('>f', peek(4))[0]
-            shape["x"] = struct.unpack('>f', peek(4))[0]
-            shape["y"] = struct.unpack('>f', peek(4))[0]
-            shape["flipX"] = int.from_bytes(peek(1)) == 1
-            shape["flipY"] = int.from_bytes(peek(1)) == 1
-            shape["color"] = int.from_bytes(peek(3, 1))
+            shape["id"] = int.from_bytes(peek(1), "big")
+            shape["scale"] = struct.unpack(">f", peek(4))[0]
+            shape["angle"] = struct.unpack(">f", peek(4))[0]
+            shape["x"] = struct.unpack(">f", peek(4))[0]
+            shape["y"] = struct.unpack(">f", peek(4))[0]
+            shape["flipX"] = int.from_bytes(peek(1), "big") == 1
+            shape["flipY"] = int.from_bytes(peek(1), "big") == 1
+            shape["color"] = int.from_bytes(peek(3, 1), "big")
 
             shapes.append(shape)
 
             if i != shapes_count - 1:
                 peek(5)
 
-    base_color = int.from_bytes(peek(3))
+    base_color = int.from_bytes(peek(3), "big")
     avatar = dict()
 
     avatar["layers"] = shapes

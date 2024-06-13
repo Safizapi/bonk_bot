@@ -1,5 +1,5 @@
 import datetime
-from typing import List
+from typing import List, Union
 import requests
 import socketio
 import asyncio
@@ -14,7 +14,8 @@ from .Room import Room
 from .Parsers import db_id_to_date
 from .Game import Game
 from .Types import Servers, Modes
-from .Parsers import mode_from_short_name
+from .Avatar import Avatar
+from .Parsers import mode_from_short_name, parse_avatar
 
 nest_asyncio.apply()
 
@@ -28,11 +29,20 @@ class BonkBot:
     :param xp: amount of xp on bot's account.
     """
 
-    def __init__(self, username: str, is_guest: bool, xp: int, aiohttp_session: aiohttp.ClientSession) -> None:
+    def __init__(
+        self,
+        username: str,
+        is_guest: bool,
+        xp: int,
+        avatars: Union[List[Avatar], None],
+        main_avatar: Union[Avatar, None],
+        aiohttp_session: aiohttp.ClientSession
+    ) -> None:
         self.username: str = username
         self.is_guest: bool = is_guest
         self.xp: int = xp
-        self.avatar: dict = {"layers": [], "bc": 0}
+        self.avatars: Union[List[Avatar], None] = avatars
+        self.main_avatar: Union[Avatar, None] = main_avatar
         self.games: List[Game] = []
         self.event_emitter: EventEmitter = EventEmitter()
         self.on: EventEmitter.on = self.event_emitter.on
@@ -219,10 +229,12 @@ class AccountBonkBot(BonkBot):
         username: str,
         is_guest: bool,
         xp: int,
+        avatars: Union[List[Avatar], None],
+        main_avatar: Union[Avatar, None],
         legacy_friends: list,
         aiohttp_session: aiohttp.ClientSession,
     ) -> None:
-        super().__init__(username, is_guest, xp, aiohttp_session)
+        super().__init__(username, is_guest, xp, avatars, main_avatar, aiohttp_session)
         self.token = token
         self.user_id = user_id
         self.legacy_friends = legacy_friends
@@ -281,8 +293,16 @@ class GuestBonkBot(BonkBot):
     :param xp: the amount of xp on account (0 by default).
     """
 
-    def __init__(self, username: str, is_guest: bool, xp: int, aiohttp_session: aiohttp.ClientSession) -> None:
-        super().__init__(username, is_guest, xp, aiohttp_session)
+    def __init__(
+        self,
+        username: str,
+        is_guest: bool,
+        xp: int,
+        avatars: Union[List[Avatar], None],
+        main_avatar: Union[Avatar, None],
+        aiohttp_session: aiohttp.ClientSession
+    ) -> None:
+        super().__init__(username, is_guest, xp, avatars, main_avatar, aiohttp_session)
 
 
 def bonk_account_login(username: str, password: str) -> AccountBonkBot:
@@ -312,15 +332,28 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
     elif data.get("e") == "password":
         raise BonkLoginError(f"Invalid password for account {username}")
 
-    return AccountBonkBot(
+    bot = AccountBonkBot(
         data["token"],
         data["id"],
         data["username"],
         False,
         data["xp"],
+        None,
+        None,
         data["legacyFriends"].split("#"),
         aiohttp.ClientSession()
     )
+
+    bot.avatars = [
+        parse_avatar(bot, data["avatar1"]),
+        parse_avatar(bot, data["avatar2"]),
+        parse_avatar(bot, data["avatar3"]),
+        parse_avatar(bot, data["avatar4"]),
+        parse_avatar(bot, data["avatar5"])
+    ]
+    bot.main_avatar = parse_avatar(bot, data["avatar"])
+
+    return bot
 
 
 def bonk_guest_login(username: str) -> GuestBonkBot:
@@ -339,7 +372,13 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
     if not (len(username) in range(2, 16)):
         raise BonkLoginError("Username must be between 2 and 16 characters")
 
-    return GuestBonkBot(username, True, 0, aiohttp.ClientSession())
+    bot = GuestBonkBot(username, True, 0, None, None, aiohttp.ClientSession())
+    dumb_avatar = Avatar(bot, {"layers": [], "bc": 4492031})
+
+    bot.avatars = [dumb_avatar] * 5
+    bot.main_avatar = dumb_avatar
+
+    return bot
 
 
 class BonkLoginError(Exception):

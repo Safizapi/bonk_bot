@@ -1,8 +1,60 @@
-import datetime
-import json
+import struct
 from typing import Union
+from urllib.parse import unquote_plus
 
 from .Types import Teams, Modes
+from .Avatar import Avatar
+
+
+# <3 Fotis
+def parse_avatar(bot, avatar: str):
+    """
+    Used to decode avatar from base64 string.
+
+    :param bot: bot class that uses the avatar.
+    :param avatar: base64 encoded avatar string that is decoded in this function.
+    """
+
+    avatar = unquote_plus(avatar)
+    avatar = base64.b64decode(avatar.encode("utf-8"))
+
+    def peek(count, offset: int = 0):
+        nonlocal avatar
+        data = avatar[offset:count + offset]
+        avatar = avatar[offset + count:]
+        return data
+
+    _ = peek(7)
+
+    shapes_count = (int.from_bytes(peek(1)) - 1) // 2
+    shapes = []
+    _ = peek(3)
+    if shapes_count > 0:
+        _ = peek(6)
+        for i in range(shapes_count):
+            shape = dict()
+
+            shape["id"] = int.from_bytes(peek(1))
+            shape["scale"] = struct.unpack('>f', peek(4))[0]
+            shape["angle"] = struct.unpack('>f', peek(4))[0]
+            shape["x"] = struct.unpack('>f', peek(4))[0]
+            shape["y"] = struct.unpack('>f', peek(4))[0]
+            shape["flipX"] = int.from_bytes(peek(1)) == 1
+            shape["flipY"] = int.from_bytes(peek(1)) == 1
+            shape["color"] = int.from_bytes(peek(3, 1))
+
+            shapes.append(shape)
+
+            if i != shapes_count - 1:
+                peek(5)
+
+    base_color = int.from_bytes(peek(3))
+    avatar = dict()
+
+    avatar["layers"] = shapes
+    avatar["bc"] = base_color
+
+    return Avatar(bot, avatar)
 
 
 # Credits to https://shaunx777.github.io/dbid2date/
@@ -13,7 +65,7 @@ def db_id_to_date(db_id: int) -> Union[datetime.datetime, str]:
     :param db_id: account database ID.
     """
 
-    with open("bonkBot/dbids.json") as file:
+    with open("bonk_bot/dbids.json") as file:
         db_ids = json.load(file)
         index = 0
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bonk_bot"
-version = "1.0.4"
+version = "1.1.2"
 description = "Python API wrapper for bonk.io web game."
 
 readme = "README.md"
@@ -27,7 +27,7 @@ keywords = ["bonk", "bonk.io", "bots", "api"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: MIT License",
+    "License :: OSI Approved :: MIT License",
 
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",

@@ -111,7 +111,7 @@ class Game:
             isinstance(team, Teams.Green) or
             isinstance(team, Teams.Yellow)
         ):
-            raise ValueError("Can't move player: team param is not a valid team")
+            raise TypeError("Can't move player: team param is not a valid team")
 
         await self.__socket_client.emit(
             6,
@@ -182,7 +182,7 @@ class Game:
             isinstance(mode, Modes.VTOL) or
             isinstance(mode, Modes.Football)
         ):
-            raise ValueError("Can't move player: team param is not a valid team")
+            raise TypeError("Can't move player: team param is not a valid team")
 
         await self.__socket_client.emit(
             20,
@@ -220,7 +220,7 @@ class Game:
             isinstance(bonk_map, Bonk2Map) or
             isinstance(bonk_map, Bonk1Map)
         ):
-            raise ValueError("Input param is not a map")
+            raise TypeError("Input param is not a map")
 
         await self.__socket_client.emit(
             23,
@@ -480,7 +480,7 @@ class Game:
                         player["tabbed"],
                         team_from_number(player["team"]),
                         players.index(player),
-                        Avatar(self.bot, player["avatar"])
+                        Avatar(player["avatar"])
                     )
                 ) for player in players if player is not None
             ]
@@ -517,7 +517,7 @@ class Game:
                 False,
                 Teams.FFA(),
                 short_id,
-                Avatar(self.bot, avatar)
+                Avatar(avatar)
             )
 
             self.players.append(joined_player)
@@ -837,7 +837,7 @@ class Player:
             isinstance(team, Teams.Green) or
             isinstance(team, Teams.Yellow)
         ):
-            raise ValueError("Can't move player: team param is not a valid team")
+            raise TypeError("Can't move player: team param is not a valid team")
 
         await self.__socket_client.emit(
             26,

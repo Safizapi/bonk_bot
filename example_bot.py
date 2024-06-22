@@ -1,8 +1,8 @@
 import asyncio
 
-from bonkBot.BonkBot import bonk_guest_login
-from bonkBot.Game import Game, Player, Message
-from bonkBot.Types import Servers, Modes
+from bonk_bot.BonkBot import bonk_guest_login
+from bonk_bot.Game import Game, Player, Message
+from bonk_bot.Types import Servers, Modes
 
 bot = bonk_guest_login("Safizapi")
 

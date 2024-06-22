@@ -64,6 +64,20 @@ class BonkBot:
         for game in self.games:
             await game.leave()
 
+    def set_main_avatar(self, avatar: Union[Avatar, None]) -> None:
+        """
+        Changes bot's account session avatar.
+        :param avatar: avatar to change (Avatar class instance). None argument sets default bonk.io avatar.
+        """
+
+        if not isinstance(avatar, Union[Avatar, None]):
+            raise TypeError("Avatar must be of type Avatar")
+
+        if avatar is None:
+            self.main_avatar = Avatar({"layers": [], "bc": 4492031})
+        else:
+            self.main_avatar = avatar
+
     async def create_game(
         self,
         name="Test room",
@@ -97,11 +111,12 @@ class BonkBot:
         """
 
         if max_players < 1 or max_players > 8:
-            raise ValueError("Max players must be between 1 and 8")
+            raise TypeError("Max players must be between 1 and 8")
         if min_level > self.get_level():
-            raise ValueError("Minimal cannot be greater than the account level")
+            raise TypeError("Minimal cannot be greater than the account level")
         if max_level < self.get_level():
-            raise ValueError("Maximum level cannot be lower than the account level")
+            raise TypeError("Maximum level cannot be lower than the account level")
+        # kekw
         if not (
             isinstance(server, Servers.Stockholm) or
             isinstance(server, Servers.Warsaw) or
@@ -117,7 +132,7 @@ class BonkBot:
             isinstance(server, Servers.Seoul) or
             isinstance(server, Servers.Sydney)
         ):
-            raise ValueError("Server param is not a server")
+            raise TypeError("Server param is not a server")
 
         game = Game(
             self,
@@ -162,7 +177,7 @@ class BonkBot:
             data = await resp.json()
 
         if data.get("e") == "invalid_options":
-            raise ValueError("Invalid options for map searching")
+            raise TypeError("Invalid options for map searching")
 
         return [
             Bonk2Map(
@@ -239,7 +254,7 @@ class AccountBonkBot(BonkBot):
         self.user_id = user_id
         self.legacy_friends = legacy_friends
 
-    def get_creation_date(self) -> datetime.datetime or str:
+    def get_creation_date(self) -> Union[datetime.datetime, str]:
         """Returns account creation date from its DBID."""
 
         return db_id_to_date(self.user_id)
@@ -373,7 +388,7 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
         raise BonkLoginError("Username must be between 2 and 16 characters")
 
     bot = GuestBonkBot(username, True, 0, None, None, aiohttp.ClientSession())
-    dumb_avatar = Avatar(bot, {"layers": [], "bc": 4492031})
+    dumb_avatar = Avatar({"layers": [], "bc": 4492031})
 
     bot.avatars = [dumb_avatar] * 5
     bot.main_avatar = dumb_avatar

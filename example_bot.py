@@ -5,6 +5,7 @@ from bonk_bot.Game import Game, Player, Message
 from bonk_bot.Types import Servers, Modes
 
 bot = bonk_guest_login("Safizapi")
+bot.set_main_avatar(None)
 
 
 @bot.on("game_connect")

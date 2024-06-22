@@ -10,16 +10,15 @@ from .Avatar import Avatar
 
 
 # <3 Fotis
-def parse_avatar(bot, avatar: str):
+def parse_avatar(avatar: str) -> Avatar:
     """
     Used to decode avatar from base64 string.
 
-    :param bot: bot class that uses the avatar.
     :param avatar: base64 encoded avatar string that is decoded in this function.
     """
 
     avatar = unquote_plus(avatar)
-    avatar = base64.b64decode(avatar.encode("utf-8"))
+    avatar = base64.b64decode(avatar + "==")
 
     def peek(count, offset: int = 0):
         nonlocal avatar
@@ -57,7 +56,7 @@ def parse_avatar(bot, avatar: str):
     avatar["layers"] = shapes
     avatar["bc"] = base_color
 
-    return Avatar(bot, avatar)
+    return Avatar(avatar)
 
 
 # Credits to https://shaunx777.github.io/dbid2date/

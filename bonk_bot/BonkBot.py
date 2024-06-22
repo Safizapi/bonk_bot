@@ -360,13 +360,13 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
     )
 
     bot.avatars = [
-        parse_avatar(bot, data["avatar1"]),
-        parse_avatar(bot, data["avatar2"]),
-        parse_avatar(bot, data["avatar3"]),
-        parse_avatar(bot, data["avatar4"]),
-        parse_avatar(bot, data["avatar5"])
+        parse_avatar(data["avatar1"]),
+        parse_avatar(data["avatar2"]),
+        parse_avatar(data["avatar3"]),
+        parse_avatar(data["avatar4"]),
+        parse_avatar(data["avatar5"])
     ]
-    bot.main_avatar = parse_avatar(bot, data["avatar"])
+    bot.main_avatar = parse_avatar(data["avatar"])
 
     return bot
 

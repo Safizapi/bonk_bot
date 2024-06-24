@@ -36,7 +36,9 @@ class Game:
         room_name: str,
         socket_client: socketio.AsyncClient,
         is_host: bool,
-        mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football],
+        mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ],
         is_created_by_bot: bool,
         event_emitter: EventEmitter,
         game_create_params: Union[list, None] = None,
@@ -51,7 +53,9 @@ class Game:
         self.is_host: bool = is_host
         self.is_bot_ready: bool = False
         self.is_banned: bool = False
-        self.mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football] = mode
+        self.mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ] = mode
         self.extended_teams: bool = False
         self.team_lock: bool = False
         self.rounds: int = 3
@@ -166,7 +170,9 @@ class Game:
 
     async def set_mode(
         self,
-        mode: Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football]
+        mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ]
     ) -> None:
         """
         Change game mode.
@@ -180,9 +186,10 @@ class Game:
             isinstance(mode, Modes.DeathArrows) or
             isinstance(mode, Modes.Grapple) or
             isinstance(mode, Modes.VTOL) or
-            isinstance(mode, Modes.Football)
+            isinstance(mode, Modes.Football) or
+            isinstance(mode, Modes.Simple)
         ):
-            raise TypeError("Can't move player: team param is not a valid team")
+            raise TypeError("Can't set mode: mode param is not a valid mode")
 
         await self.__socket_client.emit(
             20,

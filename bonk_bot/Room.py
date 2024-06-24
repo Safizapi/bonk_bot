@@ -72,6 +72,7 @@ class Room:
             False,
             self.mode,
             False,
+            False,
             self.bot.event_emitter,
             game_join_params=[self.room_id, password]
         )

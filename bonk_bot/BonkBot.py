@@ -1,101 +1,321 @@
-import datetime
-from typing import List, Union
-import requests
+import asyncio
+import random
+from random import shuffle
+from string import ascii_lowercase
 import socketio
 import re
-import asyncio
+from typing import List, Union
 from pymitter import EventEmitter
-import nest_asyncio
-import aiohttp
 
-from .Settings import PROTOCOL_VERSION, links
-from .FriendList import FriendList
-from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
-from .Room import Room
-from .Parsers import db_id_to_date
-from .Game import Game
-from .Types import Servers, Modes
 from .Avatar import Avatar
-from .Parsers import mode_from_short_name, parse_avatar
+from .BonkMaps import OwnMap, Bonk2Map, Bonk1Map
+from .Settings import PROTOCOL_VERSION, links
+from .Types import Servers, Modes, Teams
+from .Parsers import team_from_number, mode_from_short_name
 
-nest_asyncio.apply()
 
-
-class BonkBot:
+class Game:
     """
-    Base class for AccountBonkBot and GuestBonkBot.
+    Class for holding real-time game info and events.
 
-    :param username: bot username.
-    :param is_guest: indicates whether the bot is a guest or not.
-    :param xp: amount of xp on bot's account.
+    :param bot: bot class that uses the account.
+    :param room_name: name of the room.
+    :param socket_client: socketio client for sending and receiving events.
+    :param is_host: indicates whether bot is host or not.
+    :param mode: mode that is currently played.
+    :param is_created_by_bot: indicates whether room is created by bot or not. Needed to define which method should be
+            called in .connect() method.
+    :param event_emitter: pymitter event emitter for handling events in bot class.
+    :param game_create_params: params that are needed for game creation.
+    :param game_join_params: params that are needed to join the game.
+    :param is_connected: indicates whether bot is connected or not.
     """
 
     def __init__(
         self,
-        username: str,
-        is_guest: bool,
-        xp: int,
-        avatars: Union[List[Avatar], None],
-        main_avatar: Union[Avatar, None],
-        aiohttp_session: aiohttp.ClientSession
+        bot,
+        room_name: str,
+        socket_client: socketio.AsyncClient,
+        is_host: bool,
+        mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ],
+        is_created_by_bot: bool,
+        is_joined_from_link: bool,
+        event_emitter: EventEmitter,
+        game_create_params: Union[list, None] = None,
+        game_join_params: Union[list, None] = None,
+        is_connected: bool = False
     ) -> None:
-        self.username: str = username
-        self.is_guest: bool = is_guest
-        self.xp: int = xp
-        self.avatars: Union[List[Avatar], None] = avatars
-        self.main_avatar: Union[Avatar, None] = main_avatar
-        self.games: List[Game] = []
-        self.event_emitter: EventEmitter = EventEmitter()
-        self.on: EventEmitter.on = self.event_emitter.on
-        self.aiohttp_session: aiohttp.ClientSession = aiohttp_session
+        self.bot = bot
+        self.room_name: str = room_name
+        self.room_password: str = ""
+        self.players: List[Player] = []
+        self.messages: List[Message] = []
+        self.is_host: bool = is_host
+        self.is_bot_ready: bool = False
+        self.is_banned: bool = False
+        self.mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ] = mode
+        self.extended_teams: bool = False
+        self.team_lock: bool = False
+        self.rounds: int = 3
+        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map, None] = None
+        self.join_link: str = ""
+        self.__initial_state: str = ""
+        self.__socket_client: socketio.AsyncClient = socket_client
+        self.__event_emitter: EventEmitter = event_emitter
+        self.__is_created_by_bot: bool = is_created_by_bot
+        self.__is_joined_from_link: bool = is_joined_from_link
+        self.__game_create_params: Union[list, None] = game_create_params
+        self.__game_join_params: Union[list, None] = game_join_params
+        self.__is_connected: bool = is_connected
 
-    async def run(self) -> None:
-        """Prevents room connections from stopping and "starts" the bot."""
+    async def connect(self) -> None:
+        """Method that establishes connection with game. You don't need to use it."""
 
-        tasks = []
+        self.bot.games.append(self)
 
-        for game in self.games:
-            tasks.append(game.wait())
-
-        await asyncio.gather(*tasks)
-
-    async def stop(self) -> None:
-        """Stops the bot."""
-
-        for game in self.games:
-            await game.leave()
-
-    def set_main_avatar(self, avatar: Union[Avatar, None]) -> None:
-        """
-        Changes bot's account session avatar.
-        :param avatar: avatar to change (Avatar class instance). None argument sets default bonk.io avatar.
-        """
-
-        if not isinstance(avatar, Union[Avatar, None]):
-            raise TypeError("Avatar must be of type Avatar")
-
-        if avatar is None:
-            self.main_avatar = Avatar({"layers": [], "bc": 4492031})
+        if self.__is_created_by_bot:
+            await self.__create(*self.__game_create_params)
+        elif self.__is_joined_from_link:
+            await self.__join_from_room_link(*self.__game_join_params)
         else:
-            self.main_avatar = avatar
+            await self.__join(*self.__game_join_params)
 
-    async def join_game_from_link(self, link: str) -> Game:
-        game = Game(
-            self,
-            "",
-            socketio.AsyncClient(ssl_verify=False),
-            False,
-            Modes.Classic(),
-            False,
-            True,
-            self.event_emitter,
-            game_join_params=[link]
+    # async def play(self) -> None:
+    #     if not self.is_host:
+    #         raise Exception("Can't start a game: bot is not a host")
+    #
+    #     await self.__socket_client.emit(
+    #         5,
+    #         {
+    #
+    #         }
+    #     )
+
+    async def change_bot_team(
+        self,
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow]
+    ) -> None:
+        """
+        Changes current bot team.
+
+        :param team: target team that is bot moving in.
+        """
+
+        if not (
+            isinstance(team, Teams.Spectator) or
+            isinstance(team, Teams.FFA) or
+            isinstance(team, Teams.Red) or
+            isinstance(team, Teams.Blue) or
+            isinstance(team, Teams.Green) or
+            isinstance(team, Teams.Yellow)
+        ):
+            raise TypeError("Can't move player: team param is not a valid team")
+
+        await self.__socket_client.emit(
+            6,
+            {
+                "targetTeam": team.number
+            }
         )
-        await game.connect()
 
-        return game
+    async def toggle_team_lock(self, flag: bool) -> None:
+        """
+        Lock free team switching.
 
-    async def create_game(
+        :param flag: on -> True (locked teams) | off -> False (free team switching).
+        """
+
+        await self.__socket_client.emit(
+            7,
+            {
+                "teamLock": flag
+            }
+        )
+        self.team_lock = True
+
+    async def send_message(self, message: str) -> None:
+        """
+        Send message from bot in the game.
+
+        :param message: message content.
+        """
+
+        await self.__socket_client.emit(
+            10,
+            {
+                "message": message
+            }
+        )
+
+    async def toggle_bot_ready(self, flag: bool) -> None:
+        """
+        Turn on/off bot ready mark in the game.
+
+        :param flag: on -> True (bot is ready) | off -> False (bot is not ready).
+        """
+
+        await self.__socket_client.emit(
+            16,
+            {
+                "ready": flag
+            }
+        )
+        self.is_bot_ready = flag
+
+    async def set_mode(
+        self,
+        mode: Union[
+            Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple
+        ]
+    ) -> None:
+        """
+        Change game mode.
+
+        :param mode: one of the Modes class types.
+        """
+
+        if not (
+            isinstance(mode, Modes.Classic) or
+            isinstance(mode, Modes.Arrows) or
+            isinstance(mode, Modes.DeathArrows) or
+            isinstance(mode, Modes.Grapple) or
+            isinstance(mode, Modes.VTOL) or
+            isinstance(mode, Modes.Football) or
+            isinstance(mode, Modes.Simple)
+        ):
+            raise TypeError("Can't set mode: mode param is not a valid mode")
+
+        await self.__socket_client.emit(
+            20,
+            {
+                "ga": mode.ga,
+                "mo": mode.short_name
+            }
+        )
+        self.mode = mode
+
+    async def set_rounds(self, rounds: int) -> None:
+        """
+        Change rounds to win.
+
+        :param rounds: rounds that player has to reach to win the game.
+        """
+
+        await self.__socket_client.emit(
+            21,
+            {
+                "w": rounds
+            }
+        )
+        self.rounds = rounds
+
+    async def set_map(self, bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map]) -> None:
+        """
+        Change game map.
+
+        :param bonk_map: the map that is wanted to be played in the game.
+        """
+
+        if not (
+            isinstance(bonk_map, OwnMap) or
+            isinstance(bonk_map, Bonk2Map) or
+            isinstance(bonk_map, Bonk1Map)
+        ):
+            raise TypeError("Input param is not a map")
+
+        await self.__socket_client.emit(
+            23,
+            {
+                "m": bonk_map.map_data
+            }
+        )
+        self.bonk_map = bonk_map
+
+    async def toggle_teams(self, flag: bool) -> None:
+        """
+        Turn on/off extended (red, blue, green and yellow) teams.
+
+        :param flag: on -> True (extended teams) | off -> False (only FFA).
+        """
+
+        await self.__socket_client.emit(
+            32,
+            {
+                "t": flag
+            }
+        )
+        self.extended_teams = flag
+
+    async def record(self) -> None:
+        """Record the last 15 seconds of round."""
+
+        await self.__socket_client.emit(33)
+
+    async def change_room_name(self, new_room_name: str) -> None:
+        """
+        Change room name.
+
+        :param new_room_name: new room name.
+        """
+
+        await self.__socket_client.emit(
+            52,
+            {
+                "newName": new_room_name
+            }
+        )
+        self.room_name = new_room_name
+
+    async def change_room_password(self, new_password: str) -> None:
+        """
+        Change room password.
+
+        :param new_password: new room password.
+        """
+
+        await self.__socket_client.emit(
+            53,
+            {
+                "newPass": new_password
+            }
+        )
+        self.room_password = new_password
+
+    async def leave(self) -> None:
+        """Disconnect from the game."""
+
+        await self.__socket_client.disconnect()
+        self.__is_connected = False
+        self.players = []
+        self.messages = []
+
+        self.__event_emitter.emit("game_disconnect", self)
+
+    async def close(self) -> None:
+        """Close the game."""
+
+        await self.__socket_client.emit(50)
+        await self.leave()
+
+        self.__event_emitter.emit("game_disconnect", self)
+
+    async def wait(self) -> None:
+        """Prevents socketio session from stopping. You don't need to use it."""
+        await self.__socket_client.wait()
+
+    @staticmethod
+    def __get_peer_id() -> str:
+        """Generates new peer_id that is needed for game connection."""
+
+        alph = list(ascii_lowercase + "0123456789")
+        shuffle(alph)
+        return "".join(alph[:10]) + "000000"
+
+    async def __create(
         self,
         name="Test room",
         max_players=6,
@@ -104,320 +324,640 @@ class BonkBot:
         min_level=0,
         max_level=999,
         server=Servers.Warsaw()
-    ) -> Game:
-        """
-        Host a bonk.io game.
+    ) -> None:
+        socket_address = f"https://{server}.bonk.io/socket.io"
 
-        :param name: Name of the room. It can only be a string. The default is "Test room".
-        :param max_players: The amount of players that can join the game. The amount should be in range [1, 8] (def=6).
-        :param is_hidden: Indicates whether the game is hidden or not. True or False. Default is False.
-        :param password: The password that is required from other players to join the game. Default is "" (no password).
-        :param min_level: The minimal level that is required from other players to join the game. Default is 0.
-        :param max_level: The maximal level that is required from other players to join the game. Default is 999.
-        :param server: The server to join the game. Default is Servers.Warsaw().
+        @self.__socket_client.event
+        async def connect() -> None:
+            self.is_host = True
+            new_peer_id = self.__get_peer_id()
 
-        Example usage::
+            if not self.bot.is_guest:
+                await self.__socket_client.emit(
+                    12,
+                    {
+                        "peerID": new_peer_id,
+                        "roomName": name,
+                        "maxPlayers": max_players,
+                        "password": password,
+                        "dbid": self.bot.user_id,
+                        "guest": False,
+                        "minLevel": min_level,
+                        "maxLevel": max_level,
+                        "latitude": server.latitude,
+                        "longitude": server.latitude,
+                        "country": server.country,
+                        "version": PROTOCOL_VERSION,
+                        "hidden": int(is_hidden),
+                        "quick": False,
+                        "mode": "custom",
+                        "token": self.bot.token,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
+            else:
+                await self.__socket_client.emit(
+                    12,
+                    {
+                        "peerID": new_peer_id,
+                        "roomName": name,
+                        "maxPlayers": max_players,
+                        "password": password,
+                        "dbid": random.randint(10_000_000, 14_000_000),
+                        "guest": True,
+                        "minLevel": min_level,
+                        "maxLevel": max_level,
+                        "latitude": server.latitude,
+                        "longitude": server.longitude,
+                        "country": server.country,
+                        "version": PROTOCOL_VERSION,
+                        "hidden": int(is_hidden),
+                        "quick": False,
+                        "mode": "custom",
+                        "guestName": self.bot.username,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
 
-            bot = bonk_account_login("name", "pass")
+            self.players.append(
+                Player(
+                    self.bot,
+                    self,
+                    self.__socket_client,
+                    True,
+                    new_peer_id,
+                    self.bot.username,
+                    False,
+                    self.bot.get_level(),
+                    False,
+                    False,
+                    Teams.FFA(),
+                    0,
+                    self.bot.main_avatar
+                )
+            )
 
-            async def main():
-                game = await bot.create_game()
-                await bot.run()
+        await self.__socket_events()
 
-            asyncio.run(main())
-        """
+        await self.__socket_client.connect(socket_address)
+        await self.__keep_alive()
 
-        if max_players < 1 or max_players > 8:
-            raise TypeError("Max players must be between 1 and 8")
-        if min_level > self.get_level():
-            raise TypeError("Minimal cannot be greater than the account level")
-        if max_level < self.get_level():
-            raise TypeError("Maximum level cannot be lower than the account level")
-        # kekw
-        if not (
-            isinstance(server, Servers.Stockholm) or
-            isinstance(server, Servers.Warsaw) or
-            isinstance(server, Servers.Brazil) or
-            isinstance(server, Servers.SanFrancisco) or
-            isinstance(server, Servers.Atlanta) or
-            isinstance(server, Servers.Mississippi) or
-            isinstance(server, Servers.Dallas) or
-            isinstance(server, Servers.Frankfurt) or
-            isinstance(server, Servers.London) or
-            isinstance(server, Servers.NewYork) or
-            isinstance(server, Servers.Seattle) or
-            isinstance(server, Servers.Seoul) or
-            isinstance(server, Servers.Sydney)
-        ):
-            raise TypeError("Server param is not a server")
+        while not self.__is_connected:
+            await asyncio.sleep(0.5)
 
-        game = Game(
-            self,
-            name,
-            socketio.AsyncClient(ssl_verify=False),
-            True,
-            Modes.Classic(),
-            True,
-            False,
-            self.event_emitter,
-            game_create_params=[name, max_players, is_hidden, password, min_level, max_level, server]
+    async def __join_from_room_link(self, link: str) -> None:
+        pattern = re.compile(
+            r'{"address":"(.*?)","roomname":"(.*?)","server":"(.*?)","passbypass":"(.*?)","r":"success"}'
         )
-        await game.connect()
 
-        return game
+        async with self.bot.aiohttp_session.get(link) as resp:
+            data = await resp.text()
 
-    def get_level(self) -> int:
-        """Returns account level from its XP."""
-        if self.is_guest:
-            return 0
+        try:
+            room_data = pattern.findall(data)[0]
+            self.room_name = room_data[1]
 
-        return int((self.xp / 100) ** 0.5 + 1)
+            @self.__socket_client.event
+            async def connect() -> None:
+                if not self.bot.is_guest:
+                    await self.__socket_client.emit(
+                        13,
+                        {
+                            "joinID": room_data[0],
+                            "roomPassword": "",
+                            "guest": False,
+                            "dbid": 2,
+                            "version": PROTOCOL_VERSION,
+                            "peerID": self.__get_peer_id(),
+                            "bypass": "",
+                            "token": self.bot.token,
+                            "avatar": self.bot.main_avatar.json_data
+                        }
+                    )
+                else:
+                    await self.__socket_client.emit(
+                        13,
+                        {
+                            "joinID": room_data[0],
+                            "roomPassword": "",
+                            "guest": True,
+                            "dbid": 2,
+                            "version": PROTOCOL_VERSION,
+                            "peerID": self.__get_peer_id(),
+                            "bypass": "",
+                            "guestName": self.bot.username,
+                            "avatar": self.bot.main_avatar.json_data
+                        }
+                    )
 
-    async def get_b2_maps(self, request: str, by_name=True, by_author=True) -> List[Bonk2Map]:
-        """
-        Returns list of bonk2 maps.
+            await self.__socket_events()
 
-        :param request: Input string along which the search is performed.
-        :param by_name: True if you want to search map by its name. Default is True.
-        :param by_author: True if you want to search map by its author. Default is True.
-        """
+            await self.__socket_client.connect(f"https://{room_data[2]}.bonk.io/socket.io")
+            await self.__keep_alive()
 
-        async with self.aiohttp_session.post(
-            url=links["map_get_b2"],
+            while not self.__is_connected:
+                await asyncio.sleep(0.5)
+        except IndexError:
+            self.__event_emitter.emit("error", self, "room_not_found")
+            await self.leave()
+
+    async def __join(self, room_id: int, password="") -> None:
+        async with self.bot.aiohttp_session.post(
+            url=links["get_room_address"],
             data={
-                "searchauthor": str(by_author).lower(),
-                "searchmapname": str(by_name).lower(),
-                "searchsort": "best",
-                "searchstring": request,
-                "startingfrom": 0
+                "id": room_id
             }
         ) as resp:
-            data = await resp.json()
+            room_data = await resp.json()
 
-        if data.get("e") == "invalid_options":
-            raise TypeError("Invalid options for map searching")
+        if room_data.get("e") == "ratelimited":
+            raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests", self)
 
-        return [
-            Bonk2Map(
-                bonk_map["id"],
-                bonk_map["leveldata"],
-                bonk_map["name"],
-                bonk_map["authorname"],
-                bonk_map["publisheddate"],
-                bonk_map["vu"],
-                bonk_map["vd"]
+        @self.__socket_client.event
+        async def connect() -> None:
+            if not self.bot.is_guest:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": password,
+                        "guest": False,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "token": self.bot.token,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
+            else:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": password,
+                        "guest": True,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "guestName": self.bot.username,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
+
+        await self.__socket_events()
+
+        await self.__socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
+        await self.__keep_alive()
+
+        while not self.__is_connected:
+            await asyncio.sleep(0.5)
+
+    async def __keep_alive(self) -> None:
+        while self.__is_connected:
+            await self.__socket_client.emit(
+                18,
+                {
+                    "jsonrpc": "2.0",
+                    "id": "9",
+                    "method": "timesync",
+                }
             )
-            for bonk_map in data["maps"]
-        ]
+            await asyncio.sleep(5)
 
-    # why tf do you store bonk 1 maps data like that, chaz? mapid0=1597734&mapname0=hammer+vs+SUS+ptb+&creationdate...
-    # @staticmethod
-    # def get_b1_maps(request: str, by_name=True, by_author=True) -> List[Bonk1Map]:
-    #     pass
+    async def __socket_events(self) -> None:
+        @self.__socket_client.on(3)
+        async def players_on_bot_join(w1, w2, players: list, w3, w4, join_link_number: int, bypass: str, w8) -> None:
+            [
+                self.players.append(
+                    Player(
+                        self.bot,
+                        self,
+                        self.__socket_client,
+                        False,
+                        player["peerID"],
+                        player["userName"],
+                        player["guest"],
+                        player["level"],
+                        player["ready"],
+                        player["tabbed"],
+                        team_from_number(player["team"]),
+                        players.index(player),
+                        Avatar(player["avatar"])
+                    )
+                ) for player in players if player is not None
+            ]
 
-    async def get_rooms(self) -> List[Room]:
-        """Returns list of rooms in the bonk.io room list."""
+            bot = self.players[-1]
+            self.players[self.players.index(bot)].is_bot = True
+            self.join_link = f"https://bonk.io/{join_link_number}{bypass}"
 
-        async with self.aiohttp_session.post(
-            url=links["rooms"],
-            data={
-                "version": PROTOCOL_VERSION,
-                "gl": "n",
-                "token": ""
-            }
-        ) as resp:
-            data = await resp.json()
+            for x in self.players:
+                if x.team.number > 1:
+                    self.extended_teams = True
 
-        return [
-            Room(
+            self.__is_connected = True
+            self.__event_emitter.emit("game_connect", self)
+
+        @self.__socket_client.on(4)
+        async def on_player_join(
+            short_id: int,
+            peer_id: str,
+            username: str,
+            is_guest: bool,
+            level: int,
+            w,
+            avatar: dict
+        ) -> None:
+            joined_player = Player(
+                self.bot,
                 self,
-                room["id"],
-                room["roomname"],
-                room["players"],
-                room["maxplayers"],
-                room["password"] == 1,
-                mode_from_short_name(room["mode_mo"]),
-                room["minlevel"],
-                room["maxlevel"]
-            ) for room in data["rooms"]
-        ]
+                self.__socket_client,
+                False,
+                peer_id,
+                username,
+                is_guest,
+                level,
+                False,
+                False,
+                Teams.FFA(),
+                short_id,
+                Avatar(avatar)
+            )
+
+            self.players.append(joined_player)
+
+            if self.is_host:
+                await self.__socket_client.emit(
+                    11,
+                    {
+                        "sid": short_id,
+                        "gs": {
+                            "map": {
+                                "v": 13,
+                                "s": {
+                                    "re": False,
+                                    "nc": False,
+                                    "pq": 1,
+                                    "gd": 25,
+                                    "fl": False
+                                },
+                                "physics": {
+                                    "shapes": [],
+                                    "fixtures": [],
+                                    "bodies": [],
+                                    "bro": [],
+                                    "joints": [],
+                                    "ppm": 12
+                                },
+                                "spawns": [],
+                                "capZones": [],
+                                "m": {
+                                    "a": "💀",
+                                    "n": "Test map",
+                                    "dbv": 2,
+                                    "dbid": 1157352,
+                                    "authid": -1,
+                                    "date": "2024-06-04 06:03:34",
+                                    "rxid": 0,
+                                    "rxn": "",
+                                    "rxa": "",
+                                    "rxdb": 1,
+                                    "cr": [
+                                        "💀"
+                                    ],
+                                    "pub": True,
+                                    "mo": "",
+                                    "vu": 0,
+                                    "vd": 0
+                                }
+                            },
+                            "gt": 2,
+                            "wl": self.rounds,
+                            "q": False,
+                            "tl": False,
+                            "tea": False,
+                            "ga": self.mode.ga,
+                            "mo": self.mode.short_name,
+                            "bal": [],
+                            "GMMode": ""
+                        }
+                    }
+                )
+            self.__event_emitter.emit("player_join", self, joined_player)
+
+        @self.__socket_client.on(5)
+        async def on_player_left(short_id: int, w) -> None:
+            left_player = [player for player in self.players if player.short_id == short_id][0]
+            self.players.remove(left_player)
+
+            self.__event_emitter.emit("player_left", self, left_player)
+
+        @self.__socket_client.on(8)
+        async def on_player_ready(short_id: int, flag: bool) -> None:
+            player = [player for player in self.players if player.short_id == short_id][0]
+            player.is_ready = flag
+
+            if flag:
+                self.__event_emitter.emit("player_ready", self, player)
+
+        @self.__socket_client.on(16)
+        async def on_error(error) -> None:
+            exception = GameConnectionError(error, self)
+
+            if error == "invalid_params":
+                exception = GameConnectionError(
+                    "Invalid parameters. It means you've configured bot wrong, maybe your avatar. "
+                    "If you're sure this is library issue, send pull request on https://github.com/Safizapi/bonk_bot",
+                    self
+                )
+
+            self.__event_emitter.emit("error", self, error)
+
+            if error in [
+                "invalid_params",
+                "password_wrong",
+                "room_full",
+                "players_xp_too_high",
+                "players_xp_too_low",
+                "guests_not_allowed",
+                "already_in_this_room",
+                "room_not_found"
+            ]:
+                await self.leave()
+
+            raise exception
+
+        @self.__socket_client.on(18)
+        async def on_player_team_change(short_id: int, team_number: int) -> None:
+            player = [player for player in self.players if player.short_id == short_id][0]
+            team = team_from_number(team_number)
+            player.team = team
+
+            self.__event_emitter.emit("player_team_change", self, player, team)
+
+        @self.__socket_client.on(19)
+        async def on_team_lock(flag: bool) -> None:
+            self.team_lock = flag
+
+            if flag:
+                self.__event_emitter.emit("team_lock", self)
+            else:
+                self.__event_emitter.emit("team_unlock", self)
+
+        @self.__socket_client.on(20)
+        async def on_message(short_id: int, message: str) -> None:
+            author = [player for player in self.players if player.short_id == short_id][0]
+            _message = Message(message, author, self)
+
+            self.messages.append(Message(message, author, self))
+
+            if not author.is_bot:
+                self.__event_emitter.emit("message", self, _message)
+
+        @self.__socket_client.on(21)
+        async def on_lobby_load(data: dict) -> None:
+            self.mode = mode_from_short_name(data["mo"])
+            self.team_lock = data["tl"]
+            self.rounds = data["wl"]
+
+        @self.__socket_client.on(24)
+        async def on_player_kick(short_id: int, kick_only: bool) -> None:
+            player = [player for player in self.players if player.short_id == short_id][0]
+
+            if kick_only:
+                if player.is_bot:
+                    self.__event_emitter.emit("bot_kick", self)
+                    await self.leave()
+                else:
+                    self.__event_emitter.emit("player_kick", self, player)
+            else:
+                if player.is_bot:
+                    self.__event_emitter.emit("bot_ban", self)
+                    await self.leave()
+                    self.is_banned = True
+                else:
+                    self.__event_emitter.emit("player_ban", self, player)
+
+        @self.__socket_client.on(26)
+        async def on_mode_change(ga, mode_short_name: str) -> None:
+            self.mode = mode_from_short_name(mode_short_name)
+
+            self.__event_emitter.emit("mode_change", self, self.mode)
+
+        @self.__socket_client.on(29)
+        async def on_map_change(map_data: str) -> None:
+            pass
+
+        @self.__socket_client.on(36)
+        async def on_player_balance(short_id: int, percents: int) -> None:
+            player = [player for player in self.players if player.short_id == short_id][0]
+            player.balanced_by = percents
+
+            self.__event_emitter.emit("player_balance", self, player, percents)
+
+        @self.__socket_client.on(39)
+        async def on_teams_toggle(flag: bool) -> None:
+            self.extended_teams = flag
+
+            if flag:
+                self.__event_emitter.emit("teams_turn_on", self)
+            else:
+                self.__event_emitter.emit("teams_turn_off", self)
+
+        @self.__socket_client.on(41)
+        async def on_host_change(data: dict) -> None:
+            old_host = [player for player in self.players if player.short_id == data["oldHost"]][0]
+            new_host = [player for player in self.players if player.short_id == data["newHost"]][0]
+
+            if old_host.is_bot and not new_host.is_bot:
+                self.is_host = False
+            elif not old_host.is_bot and new_host.is_bot:
+                self.is_host = True
+
+            self.__event_emitter.emit("host_change", self, old_host, new_host)
+
+        @self.__socket_client.on(49)
+        async def on_join_link_receive(join_link_number: int, bypass: str) -> None:
+            self.join_link = f"https://bonk.io/{join_link_number}{bypass}"
+            self.__is_connected = True
+            self.__event_emitter.emit("game_connect", self)
+
+        @self.__socket_client.on(58)
+        async def on_new_room_name(new_room_name: str) -> None:
+            self.room_name = new_room_name
+
+            self.__event_emitter.emit("new_room_name", self, new_room_name)
+
+        @self.__socket_client.on(59)
+        async def on_room_password_change(flag: int) -> None:
+            if bool(flag):
+                self.__event_emitter.emit("new_room_password", self)
+            else:
+                self.__event_emitter.emit("room_password_clear", self)
 
 
-class AccountBonkBot(BonkBot):
+class Player:
     """
-    Bot class for bonk.io account.
+    Class that holds bonk.io game players' info.
 
-    :param token: session token that is received when logging into bonk.io account and required for some bonk api calls.
-    :param user_id: account database ID.
-    :param username: account name.
-    :param is_guest: whether account is guest or not (False by default since class is used by bonk.io account).
-    :param xp: the amount of xp on account.
-    :param legacy_friends: bonk 1 (flash version) friends of the account.
+    :param bot: bot class that uses in the same game with player.
+    :param game: the game which player is playing in.
+    :param socket_client: socketio client for emitting events.
+    :param is_bot: indicates whether player is bot or not.
+    :param peer_id: player's game peer id.
+    :param username: player's username.
+    :param is_guest: indicates whether player is guest or not.
+    :param level: player's level.
+    :param is_ready: indicates whether player is ready or not.
+    :param is_tabbed: indicates whether player is tabbed or not.
+    :param team: Teams' class that indicates player's team.
+    :param short_id: player's id in the game.
+    :param avatar: player's avatar.
     """
 
     def __init__(
         self,
-        token: str,
-        user_id: int,
+        bot,
+        game: Game,
+        socket_client: socketio.AsyncClient,
+        is_bot: bool,
+        peer_id: str,
         username: str,
         is_guest: bool,
-        xp: int,
-        avatars: Union[List[Avatar], None],
-        main_avatar: Union[Avatar, None],
-        legacy_friends: list,
-        aiohttp_session: aiohttp.ClientSession,
+        level: int,
+        is_ready: bool,
+        is_tabbed: bool,
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow],
+        short_id: int,
+        avatar: Avatar
     ) -> None:
-        super().__init__(username, is_guest, xp, avatars, main_avatar, aiohttp_session)
-        self.token = token
-        self.user_id = user_id
-        self.legacy_friends = legacy_friends
+        self.bot = bot
+        self.is_bot: bool = is_bot
+        self.game: Game = game
+        self.username: str = username
+        self.is_guest: bool = is_guest
+        self.level: int = level
+        self.is_ready: bool = is_ready
+        self.is_tabbed: bool = is_tabbed
+        self.team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow] = team
+        self.balanced_by: int = 0
+        self.short_id: int = short_id
+        self.avatar: Avatar = avatar
+        self.__socket_client: socketio.AsyncClient = socket_client
+        self.__peer_id: str = peer_id
 
-    def get_creation_date(self) -> Union[datetime.datetime, str]:
-        """Returns account creation date from its DBID."""
+    async def send_friend_request(self) -> None:
+        """Send friend request to the player."""
 
-        return db_id_to_date(self.user_id)
-
-    async def get_own_maps(self) -> List[OwnMap]:
-        """Returns list of maps created on the account."""
-
-        async with self.aiohttp_session.post(
-            url=links["map_get_own"],
-            data={
-                "token": self.token,
-                "startingfrom": "0"
+        await self.__socket_client.emit(
+            35,
+            {
+                "id": self.short_id
             }
-        ) as resp:
-            data = await resp.json()
+        )
 
-        return [
-            OwnMap(
-                self,
-                bonk_map["id"],
-                bonk_map["leveldata"],
-                bonk_map["name"],
-                bonk_map["creationdate"],
-                bonk_map["published"] == 1,
-                bonk_map["vu"],
-                bonk_map["vd"]
-            )
-            for bonk_map in data["maps"]
-        ]
+    async def give_host(self) -> None:
+        """Give the host permissions to player."""
 
-    async def get_friend_list(self) -> FriendList:
-        """Returns account friend list that contains friends and friend requests."""
-
-        async with self.aiohttp_session.post(
-            url=links["friends"],
-            data={
-                "token": self.token,
-                "task": "getfriends"
+        await self.__socket_client.emit(
+            34,
+            {
+                "id": self.short_id
             }
-        ) as resp:
-            data = await resp.json()
-        return FriendList(self, data)
+        )
+        self.game.is_host = False
 
+    async def kick(self) -> None:
+        """Kick player from game."""
 
-class GuestBonkBot(BonkBot):
-    """
-    Bot class for bonk.io guest account.
+        await self.__socket_client.emit(
+            9,
+            {
+                "banshortid": self.short_id,
+                "kickonly": True
+            }
+        )
 
-    :param username: guest account name.
-    :param is_guest: whether account is guest or not (True by default since class is used by bonk.io guest account).
-    :param xp: the amount of xp on account (0 by default).
-    """
+    async def ban(self) -> None:
+        """Ban player from game."""
 
-    def __init__(
+        await self.__socket_client.emit(
+            9,
+            {
+                "banshortid": self.short_id,
+                "kickonly": False
+            }
+        )
+
+    async def move_to_team(
         self,
-        username: str,
-        is_guest: bool,
-        xp: int,
-        avatars: Union[List[Avatar], None],
-        main_avatar: Union[Avatar, None],
-        aiohttp_session: aiohttp.ClientSession
+        team: Union[Teams.Spectator, Teams.FFA, Teams.Red, Teams.Blue, Teams.Green, Teams.Yellow]
     ) -> None:
-        super().__init__(username, is_guest, xp, avatars, main_avatar, aiohttp_session)
+        """
+        Move player to another team.
+
+        :param team: Teams class that indicates player's team.
+        """
+
+        if not (
+            isinstance(team, Teams.Spectator) or
+            isinstance(team, Teams.FFA) or
+            isinstance(team, Teams.Red) or
+            isinstance(team, Teams.Blue) or
+            isinstance(team, Teams.Green) or
+            isinstance(team, Teams.Yellow)
+        ):
+            raise TypeError("Can't move player: team param is not a valid team")
+
+        await self.__socket_client.emit(
+            26,
+            {
+                "targetID": self.short_id,
+                "targetTeam": team.number
+            }
+        )
+        self.team = team
+
+    async def balance(self, percents: int) -> None:
+        """
+        Nerf/buff player.
+
+        :param percents: the percent you want to balance player by (in range [-100, 100]).
+        """
+
+        if not (percents in range(-100, 101)):
+            raise ValueError("Can't balance player: percents param is not in range [-100, 100]")
+
+        await self.__socket_client.emit(
+            29,
+            {
+                "sid": self.short_id,
+                "bal": percents
+            }
+        )
+        self.balanced_by = percents
 
 
-def bonk_account_login(username: str, password: str) -> AccountBonkBot:
+class Message:
     """
-    Creates bot on bonk.io account.
+    Class that holds info about game message.
 
-    :param username: bonk.io account username. Be aware that some usernames like "___" or "%_e" aren't supported.
-    :param password: bonk.io account password.
-
-    Example usage::
-
-        bot = bonk_account_login("name", "pass")
-        print(bot.username)
-    """
-
-    data = requests.post(
-        links["login"],
-        {
-            "username": username,
-            "password": password,
-            "remember": "false"
-        }
-    ).json()
-
-    if data.get("e") == "username_fail":
-        raise BonkLoginError(f"Invalid username {username}")
-    elif data.get("e") == "password":
-        raise BonkLoginError(f"Invalid password for account {username}")
-
-    bot = AccountBonkBot(
-        data["token"],
-        data["id"],
-        data["username"],
-        False,
-        data["xp"],
-        None,
-        None,
-        data["legacyFriends"].split("#"),
-        aiohttp.ClientSession()
-    )
-
-    bot.avatars = [
-        parse_avatar(data["avatar1"]),
-        parse_avatar(data["avatar2"]),
-        parse_avatar(data["avatar3"]),
-        parse_avatar(data["avatar4"]),
-        parse_avatar(data["avatar5"])
-    ]
-    bot.main_avatar = parse_avatar(data["avatar"])
-
-    return bot
-
-
-def bonk_guest_login(username: str) -> GuestBonkBot:
-    """
-    Creates bot without bonk.io account (some methods like get_friend_list() are unavailable).
-    Note that guest account can change its nickname if someone in the game has the same nickname.
-
-    Example usage::
-
-        bot = bonk_account_login("name")
-        print(bot.username)
-
-    :param username: guest username.
+    :param content: message content.
+    :param author: Player class that indicates the author of message.
+    :param game: Game class that indicates the game where message was sent.
     """
 
-    pattern = re.compile(r"""[:;,.`~!@"'?#$%^&*()+=/|><\-]""")
-
-    if not (len(username) in range(2, 16)) or pattern.findall(username) or not username.isascii():
-        raise BonkLoginError("Username must be between 2 and 16 characters and contain only numbers, letters and _")
-
-    bot = GuestBonkBot(username, True, 0, None, None, aiohttp.ClientSession())
-    dumb_avatar = Avatar({"layers": [], "bc": 4492031})
-
-    bot.avatars = [dumb_avatar] * 5
-    bot.main_avatar = dumb_avatar
-
-    return bot
+    def __init__(self, content: str, author: Player, game: Game) -> None:
+        self.content: str = content
+        self.author: Player = author
+        self.game: Game = game
 
 
-class BonkLoginError(Exception):
-    """Raised when bonk login is failed."""
+class GameConnectionError(Exception):
+    """Raised when game connection has some error."""
 
-    def __init__(self, message: str) -> None:
-        self.message = message
+    def __init__(self, message: str, game: Game) -> None:
+        self.message: str = message
+        self.game: Game = game

@@ -108,7 +108,7 @@ def team_from_number(
         2: Teams.Red(),
         3: Teams.Blue(),
         4: Teams.Green(),
-        5: Teams.Yellow(),
+        5: Teams.Yellow()
     }
 
     return teams[number]
@@ -116,7 +116,7 @@ def team_from_number(
 
 def mode_from_short_name(
     short_name: str
-) -> Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football]:
+) -> Union[Modes.Classic, Modes.Arrows, Modes.DeathArrows, Modes.Grapple, Modes.VTOL, Modes.Football, Modes.Simple]:
     """
     Returns mode class from its short name according to bonk.io api.
 
@@ -125,11 +125,12 @@ def mode_from_short_name(
 
     modes = {
         "b": Modes.Classic(),
+        "bs": Modes.Simple(),
         "ar": Modes.Arrows(),
         "ard": Modes.DeathArrows(),
         "sp": Modes.Grapple(),
         "v": Modes.VTOL(),
-        "f": Modes.Football(),
+        "f": Modes.Football()
     }
 
     return modes[short_name]

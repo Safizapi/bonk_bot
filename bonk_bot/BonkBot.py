@@ -79,6 +79,22 @@ class BonkBot:
         else:
             self.main_avatar = avatar
 
+    async def join_game_from_link(self, link: str) -> Game:
+        game = Game(
+            self,
+            "",
+            socketio.AsyncClient(ssl_verify=False),
+            False,
+            Modes.Classic(),
+            False,
+            True,
+            self.event_emitter,
+            game_join_params=[link]
+        )
+        await game.connect()
+
+        return game
+
     async def create_game(
         self,
         name="Test room",
@@ -142,6 +158,7 @@ class BonkBot:
             True,
             Modes.Classic(),
             True,
+            False,
             self.event_emitter,
             game_create_params=[name, max_players, is_hidden, password, min_level, max_level, server]
         )

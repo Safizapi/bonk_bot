@@ -130,6 +130,14 @@ class Modes:
         def __str__(self) -> str:
             return "Classic"
 
+    class Simple:
+        def __init__(self) -> None:
+            self.ga = "b"
+            self.short_name = "bs"
+
+        def __str__(self) -> str:
+            return "Simple"
+
     class Arrows:
         def __init__(self) -> None:
             self.ga = "b"
@@ -144,7 +152,6 @@ class Modes:
             self.short_name = "ard"
 
         def __str__(self) -> str:
-            self.ga = "b"
             return "Death Arrows"
 
     class Grapple:
@@ -153,7 +160,6 @@ class Modes:
             self.short_name = "sp"
 
         def __str__(self) -> str:
-            self.ga = "b"
             return "Grapple"
 
     class VTOL:

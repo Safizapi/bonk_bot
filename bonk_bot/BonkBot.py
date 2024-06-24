@@ -2,6 +2,7 @@ import datetime
 from typing import List, Union
 import requests
 import socketio
+import re
 import asyncio
 from pymitter import EventEmitter
 import nest_asyncio
@@ -324,7 +325,7 @@ def bonk_account_login(username: str, password: str) -> AccountBonkBot:
     """
     Creates bot on bonk.io account.
 
-    :param username: bonk.io account username.
+    :param username: bonk.io account username. Be aware that some usernames like "___" or "%_e" aren't supported.
     :param password: bonk.io account password.
 
     Example usage::
@@ -384,8 +385,10 @@ def bonk_guest_login(username: str) -> GuestBonkBot:
     :param username: guest username.
     """
 
-    if not (len(username) in range(2, 16)):
-        raise BonkLoginError("Username must be between 2 and 16 characters")
+    pattern = re.compile(r"""[:;,.`~!@"'?#$%^&*()+=/|><\-]""")
+
+    if not (len(username) in range(2, 16)) or pattern.findall(username) or not username.isascii():
+        raise BonkLoginError("Username must be between 2 and 16 characters and contain only numbers, letters and _")
 
     bot = GuestBonkBot(username, True, 0, None, None, aiohttp.ClientSession())
     dumb_avatar = Avatar({"layers": [], "bc": 4492031})

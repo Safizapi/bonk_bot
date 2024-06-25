@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="bonk_bot",
-    version="1.1.4",
+    version="1.2.3",
     description="Python API wrapper for bonk.io web game.",
     license="MIT",
     long_description=long_description,

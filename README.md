@@ -55,7 +55,6 @@ async def main():
 asyncio.run(main())
 ```
 ## Events
-- **game_join**: triggered when bot joins the room
 - **player_join**: triggered when some player joins the room
 - **player_left**: triggered when some player leaves the room
 - **player_ready**: triggered when some player presses ready button

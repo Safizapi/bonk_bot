@@ -1,9 +1,11 @@
 import datetime
 from typing import List, Union
+import socketio
 
 from .Settings import links
 from .Parsers import db_id_to_date
 from .Game import Game
+from .Types import Modes
 
 
 class Friend:
@@ -62,8 +64,18 @@ class Friend:
             asyncio.run(main())
         """
 
-        room = [room for room in self.bot.get_rooms() if room.room_id == self.room_id][0]
-        game = room.join()
+        game = Game(
+            self.bot,
+            "Unknown name",
+            socketio.AsyncClient(ssl_verify=False),
+            False,
+            Modes.Classic(),
+            False,
+            False,
+            True,
+            self.bot.event_emitter,
+            game_join_params=[self.room_id]
+        )
         await game.connect()
 
         return game

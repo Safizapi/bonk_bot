@@ -1,5 +1,6 @@
 import datetime
 from typing import List, Union
+from urllib.parse import unquote_plus
 import requests
 import socketio
 import re
@@ -88,6 +89,7 @@ class BonkBot:
             Modes.Classic(),
             False,
             True,
+            False,
             self.event_emitter,
             game_join_params=[link]
         )
@@ -159,6 +161,7 @@ class BonkBot:
             Modes.Classic(),
             True,
             False,
+            False,
             self.event_emitter,
             game_create_params=[name, max_players, is_hidden, password, min_level, max_level, server]
         )
@@ -211,9 +214,44 @@ class BonkBot:
         ]
 
     # why tf do you store bonk 1 maps data like that, chaz? mapid0=1597734&mapname0=hammer+vs+SUS+ptb+&creationdate...
-    # @staticmethod
-    # def get_b1_maps(request: str, by_name=True, by_author=True) -> List[Bonk1Map]:
-    #     pass
+    async def get_b1_maps(self, request: str, by_name=True, by_author=True) -> List[Bonk1Map]:
+        """
+        Returns list of bonk1 maps.
+
+        :param request: Input string along which the search is performed.
+        :param by_name: True if you want to search map by its name. Default is True.
+        :param by_author: True if you want to search map by its author. Default is True.
+        """
+
+        async with self.aiohttp_session.post(
+            url=links["map_get_b1"],
+            data={
+                "searchsort": "ctr",
+                "searchauthor": str(by_author).lower(),
+                "searchmapname": str(by_name).lower(),
+                "startingfrom": 0,
+                "searchstring": request
+            }
+        ) as resp:
+            data = unquote_plus((await resp.json())["maps"])
+
+        pattern = re.compile(
+            r'mapid\d*=(\d*)&mapname\d*=([^-]*)&creationdate\d*=([^&]*)&modifieddate\d*=([^&]*)&thumbsup\d*=(\d*)&thumbsdown\d*=(\d*)&score\d*=\d*&authorname\d*=([^&]*)&leveldata\d*=([^&]*)'
+        )
+        parsed_data = pattern.findall(data)
+
+        return [
+            Bonk1Map(
+                int(bonk_map[0]),
+                bonk_map[7],
+                bonk_map[1],
+                bonk_map[6],
+                bonk_map[2],
+                bonk_map[3],
+                int(bonk_map[4]),
+                int(bonk_map[5])
+            ) for bonk_map in parsed_data
+        ]
 
     async def get_rooms(self) -> List[Room]:
         """Returns list of rooms in the bonk.io room list."""

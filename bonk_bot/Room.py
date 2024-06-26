@@ -57,7 +57,7 @@ class Room:
             bot = bonk_account_login("name", "pass")
 
             async def main():
-                room = [room for room in bot.get_rooms() if room.name == "test room"][0]
+                room = [room for room in await bot.get_rooms() if room.name == "test room"][0]
                 game = await room.join()
 
                 await bot.run()
@@ -71,6 +71,7 @@ class Room:
             socketio.AsyncClient(ssl_verify=False),
             False,
             self.mode,
+            False,
             False,
             False,
             self.bot.event_emitter,

@@ -16,7 +16,7 @@ from .Parsers import team_from_number, mode_from_short_name
 
 class Game:
     """
-    Class for holding real-time game info and events.
+    Class for handling real-time game info and events.
 
     :param bot: bot class that uses the account.
     :param room_name: name of the room.
@@ -42,6 +42,7 @@ class Game:
         ],
         is_created_by_bot: bool,
         is_joined_from_link: bool,
+        is_joined_from_friend_list: bool,
         event_emitter: EventEmitter,
         game_create_params: Union[list, None] = None,
         game_join_params: Union[list, None] = None,
@@ -61,13 +62,22 @@ class Game:
         self.extended_teams: bool = False
         self.team_lock: bool = False
         self.rounds: int = 3
-        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map, None] = None
+        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map, None] = Bonk2Map(
+            1039,
+            "eNrjYmdPzy1gYGFgdXF1DPFgYE%2FNzcyxNDBwMGEAAwcVBhRg%2Fy4NDOw%2FQPktVQ%2Fd14lUw%2FgOGlCFslzsrAXFDKwM6IARXcAhErtVDEwMZzc3MNi%2FnAkCs%2BwvG4OB%2FQMGHIArICexJC2%2FKFfBkIuVgfVAzgGw8IGkA7hs9qS6zUYgmx3oZ7MgwmYFjeT8gkpNZK87DJQDHOjnAAkMByC5A6YIFiBY3IEjoUNUMpKTBoyRbXagvc2IKDBGTgORdPM6fgfQIQQkMByA7I5MugUEUe6gQ3jI43IHsnOKDtArWEhxDh1CR42Ac5DLsYHORA6DJBM5DJJM5DC4MpHD4MpEDoMyEx0odYDYmclAa1fpEucq5CCDOu5AWsMgDDI6uIqCIAsZhPF5gH6OMyHJcVgCEOaSwejGA%2FRzozU5bsQWnHGD3qkH6OdUJwqcii1wM4eCixlYudg5c4sL8uAdPzvsdoHcBvRdcEFieR4XJ7yLkOqAUzlCtQNRqnnAqmEhCdfkkIBdEyMjI1CTMLImuN4DROmVwqIXSnEyMgIRAwCNVclU",
+            "DEATH",
+            "emil900",
+            "2016-09-09 10:57:10",
+            638985,
+            100148
+        )
         self.join_link: str = ""
         self.__initial_state: str = ""
         self.__socket_client: socketio.AsyncClient = socket_client
         self.__event_emitter: EventEmitter = event_emitter
         self.__is_created_by_bot: bool = is_created_by_bot
         self.__is_joined_from_link: bool = is_joined_from_link
+        self.__is_joined_from_friend_list: bool = is_joined_from_friend_list
         self.__game_create_params: Union[list, None] = game_create_params
         self.__game_join_params: Union[list, None] = game_join_params
         self.__is_connected: bool = is_connected
@@ -81,6 +91,8 @@ class Game:
             await self.__create(*self.__game_create_params)
         elif self.__is_joined_from_link:
             await self.__join_from_room_link(*self.__game_join_params)
+        elif self.__is_joined_from_friend_list:
+            await self.__join_from_friend_list(*self.__game_join_params)
         else:
             await self.__join(*self.__game_join_params)
 
@@ -405,6 +417,61 @@ class Game:
         while not self.__is_connected:
             await asyncio.sleep(0.5)
 
+    async def __join_from_friend_list(self, room_id: int) -> None:
+        async with self.bot.aiohttp_session.post(
+            url=links["get_room_address"],
+            data={
+                "id": room_id
+            }
+        ) as resp:
+            room_data = await resp.json()
+
+        error = room_data.get("e")
+
+        if error:
+            raise GameConnectionError(error, self)
+
+        @self.__socket_client.event
+        async def connect() -> None:
+            if not self.bot.is_guest:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": "",
+                        "guest": False,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "token": self.bot.token,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
+            else:
+                await self.__socket_client.emit(
+                    13,
+                    {
+                        "joinID": room_data["address"],
+                        "roomPassword": "",
+                        "guest": True,
+                        "dbid": 2,
+                        "version": PROTOCOL_VERSION,
+                        "peerID": self.__get_peer_id(),
+                        "bypass": "",
+                        "guestName": self.bot.username,
+                        "avatar": self.bot.main_avatar.json_data
+                    }
+                )
+
+        await self.__socket_events()
+
+        await self.__socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
+        await self.__keep_alive()
+
+        while not self.__is_connected:
+            await asyncio.sleep(0.5)
+
     async def __join_from_room_link(self, link: str) -> None:
         pattern = re.compile(
             r'{"address":"(.*?)","roomname":"(.*?)","server":"(.*?)","passbypass":"(.*?)","r":"success"}'
@@ -470,8 +537,10 @@ class Game:
         ) as resp:
             room_data = await resp.json()
 
-        if room_data.get("e") == "ratelimited":
-            raise GameConnectionError("Cannot connect to server, connection ratelimited: sent to many requests", self)
+        error = room_data.get("e")
+
+        if error:
+            raise GameConnectionError(error, self)
 
         @self.__socket_client.event
         async def connect() -> None:
@@ -614,12 +683,12 @@ class Game:
                                 "spawns": [],
                                 "capZones": [],
                                 "m": {
-                                    "a": "💀",
-                                    "n": "Test map",
+                                    "a": self.bonk_map.author_name,
+                                    "n": self.bonk_map.name,
                                     "dbv": 2,
-                                    "dbid": 1157352,
+                                    "dbid": self.bonk_map.map_id,
                                     "authid": -1,
-                                    "date": "2024-06-04 06:03:34",
+                                    "date": self.bonk_map.creation_date,
                                     "rxid": 0,
                                     "rxn": "",
                                     "rxa": "",
@@ -627,10 +696,10 @@ class Game:
                                     "cr": [
                                         "💀"
                                     ],
-                                    "pub": True,
+                                    "pub": self.bonk_map.is_published if isinstance(self.bonk_map, OwnMap) else True,
                                     "mo": "",
-                                    "vu": 0,
-                                    "vd": 0
+                                    "vu": self.bonk_map.votes_up,
+                                    "vd": self.bonk_map.votes_down
                                 }
                             },
                             "gt": 2,

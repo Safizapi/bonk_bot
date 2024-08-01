@@ -4,3 +4,5 @@ aiohttp==3.9.5
 requests==2.32.3
 nest-asyncio==1.6.0
 pymitter==0.5.1
+lzstring==1.0.4
+setuptools==70.1.0

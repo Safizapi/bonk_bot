@@ -916,8 +916,7 @@ class Game:
                             "tea": self.teams,
                             "ga": self.mode.ga,
                             "mo": self.mode.short_name,
-                            "bal": [],
-                            "GMMode": ""
+                            "bal": []
                         }
                     }
                 )

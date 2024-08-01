@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bonk_bot"
-version = "1.2.3"
+version = "2.0.0"
 description = "Python API wrapper for bonk.io web game."
 
 readme = "README.md"
@@ -19,11 +19,13 @@ dependencies = [
     "aiohttp==3.9.5",
     "requests==2.32.3",
     "nest-asyncio==1.6.0",
-    "pymitter==0.5.1"
+    "pymitter==0.5.1",
+    "lzstring==1.0.4",
+    "setuptools==70.1.0",
 ]
 requires-python = ">= 3.8"
 
-keywords = ["bonk", "bonk.io", "bots", "api"]
+keywords = ["bonk", "bonk.io", "bots", "api", "bonk-bot"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

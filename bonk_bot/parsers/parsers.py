@@ -516,7 +516,9 @@ def db_id_to_date(db_id: int) -> Union[datetime.datetime, str]:
     :param db_id: account database ID.
     """
 
-    with open("bot/dbids.json") as file:
+    json_path = __file__.replace(r"parsers\parsers.py", "") + "dbids.json"
+
+    with open(json_path) as file:
         db_ids = json.load(file)
         index = 0
 
@@ -539,7 +541,7 @@ def db_id_to_date(db_id: int) -> Union[datetime.datetime, str]:
     diff = (db_id - first_number) / (second_number - first_number)
     time = first_timestamp + diff * (second_timestamp - first_timestamp)
 
-    return datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d")
 
 
 def team_from_number(number: int) -> AnyTeam:

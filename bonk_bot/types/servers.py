@@ -96,13 +96,13 @@ class Servers:
 
 
 AnyServer = Union[
-    Type[Servers.Warsaw], Type[Servers.Stockholm], Type[Servers.Frankfurt], Type[Servers.London], Type[Servers.Seoul],
-    Type[Servers.Seattle], Type[Servers.SanFrancisco], Type[Servers.Mississippi], Type[Servers.Dallas],
-    Type[Servers.NewYork], Type[Servers.Atlanta], Type[Servers.Sydney], Type[Servers.Brazil]
+    Type[Servers.Warsaw], Type[Servers.Stockholm], Type[Servers.Paris], Type[Servers.Frankfurt], Type[Servers.London],
+    Type[Servers.Seoul], Type[Servers.Seattle], Type[Servers.SanFrancisco], Type[Servers.Mississippi],
+    Type[Servers.Dallas], Type[Servers.NewYork], Type[Servers.Atlanta], Type[Servers.Sydney], Type[Servers.Brazil]
 ]
 
 all_servers_list = [
-    Servers.Warsaw, Servers.Stockholm, Servers.Frankfurt, Servers.London, Servers.Seoul, Servers.Seattle,
+    Servers.Warsaw, Servers.Stockholm, Servers.Paris, Servers.Frankfurt, Servers.London, Servers.Seoul, Servers.Seattle,
     Servers.SanFrancisco, Servers.Mississippi, Servers.Dallas, Servers.NewYork, Servers.Atlanta, Servers.Sydney,
     Servers.Brazil
 ]

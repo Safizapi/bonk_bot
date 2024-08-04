@@ -86,7 +86,6 @@ class Room:
             self.bot,
             None,
             self.name,
-            socketio.AsyncClient(ssl_verify=False),
             False,
             self.mode,
             False,

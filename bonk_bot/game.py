@@ -31,7 +31,6 @@ class Game:
 
     :param bot: bot class that uses the account.
     :param room_name: name of the room.
-    :param socket_client: socketio client for sending and receiving events.
     :param is_host: indicates whether bot is host or not.
     :param mode: mode that is currently played.
     :param is_created_by_bot: indicates whether room is created by bot or not. Needed to define which method should be
@@ -49,7 +48,6 @@ class Game:
         bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
         server: Union[AnyServer, None],
         room_name: str,
-        socket_client: socketio.AsyncClient,
         is_host: bool,
         mode: AnyMode,
         is_created_by_bot: bool,
@@ -88,7 +86,7 @@ class Game:
         )
         self.requested_maps: List[MapRequestHost] = []
         self.join_link = ""
-        self._socket_client: socketio.AsyncClient = socket_client
+        self._socket_client = socketio.AsyncClient(ssl_verify=False)
         self.__is_created_by_bot: bool = is_created_by_bot
         self.__is_joined_from_link: bool = is_joined_from_link
         self.__is_joined_from_friend_list: bool = is_joined_from_friend_list
@@ -570,7 +568,7 @@ class Game:
         await self.socket_client.connect(socket_address)
         await self.__keep_alive()
 
-    async def __join_from_friend_list(self, room_id: int) -> None:
+    async def __join_from_friend_list(self, room_id: int, password="") -> None:
         """
         Sends join packets to join a room from friend list.
 
@@ -589,6 +587,7 @@ class Game:
 
         if error:
             self.bot.event_emitter.emit("error", GameConnectionError(error, self))
+            return
 
         @self.socket_client.event
         async def connect() -> None:
@@ -597,7 +596,7 @@ class Game:
                     13,
                     {
                         "joinID": room_data["address"],
-                        "roomPassword": "",
+                        "roomPassword": password,
                         "guest": False,
                         "dbid": 2,
                         "version": PROTOCOL_VERSION,
@@ -612,7 +611,7 @@ class Game:
                     13,
                     {
                         "joinID": room_data["address"],
-                        "roomPassword": "",
+                        "roomPassword": password,
                         "guest": True,
                         "dbid": 2,
                         "version": PROTOCOL_VERSION,
@@ -628,7 +627,7 @@ class Game:
         await self.socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
         await self.__keep_alive()
 
-    async def __join_from_room_link(self, link: str) -> None:
+    async def __join_from_room_link(self, link: str, password="") -> None:
         """
         Sends join packets to join a room from link.
 
@@ -653,7 +652,7 @@ class Game:
                         13,
                         {
                             "joinID": room_data[0],
-                            "roomPassword": "",
+                            "roomPassword": password,
                             "guest": False,
                             "dbid": 2,
                             "version": PROTOCOL_VERSION,
@@ -668,7 +667,7 @@ class Game:
                         13,
                         {
                             "joinID": room_data[0],
-                            "roomPassword": "",
+                            "roomPassword": password,
                             "guest": True,
                             "dbid": 2,
                             "version": PROTOCOL_VERSION,
@@ -1460,13 +1459,21 @@ class MapRequestHost:
         )
 
     async def load(self) -> None:
-        await self.game.socket_client.emit(
-            23,
-            {
-                "m": self.level_data
-            }
-        )
-        self.game._bonk_map = self.bonk_map
+        """Sets game map from map request."""
+
+        if not self.game.is_host:
+            self.bot.event_emitter.emit(
+                "error",
+                GameConnectionError("Cannot set map, bot is not a host", self.game)
+            )
+        else:
+            await self.game.socket_client.emit(
+                23,
+                {
+                    "m": self.level_data
+                }
+            )
+            self.game._bonk_map = self.bonk_map
 
 
 class MapRequestClient:

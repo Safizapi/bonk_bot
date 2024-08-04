@@ -68,9 +68,11 @@ class Friend:
 
         return db_id_to_date(self.user_id)
 
-    async def join_game(self) -> Game:
+    async def join_game(self, password="") -> Game:
         """
         Establish connection with room where friend is playing.
+
+        :param password: password that is required to join the game.
 
         Example usage::
 
@@ -91,14 +93,13 @@ class Friend:
         return Game(
             self.bot,
             None,
-            "Unknown name",
-            socketio.AsyncClient(ssl_verify=False),
+            "Unknown",
             False,
             Modes.Classic,
             False,
             False,
             True,
-            game_join_params=[self.room_id]
+            game_join_params=[self.room_id, password]
         )
 
 

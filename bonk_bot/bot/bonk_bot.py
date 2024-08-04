@@ -3,7 +3,6 @@ import json
 from typing import List, Union
 from urllib.parse import unquote_plus
 import requests
-import socketio
 import re
 import asyncio
 import nest_asyncio
@@ -152,10 +151,11 @@ class BonkBot(BotEventHandler):
 
         self.event_emitter.on(attribute_name.replace("_on_", ""), function)
 
-    async def join_game_from_link(self, link: str) -> Game:
+    async def join_game_from_link(self, link: str, password="") -> Game:
         """
         Joins a game from join link.
 
+        :param password: password that is required to join the game.
         :param link: link to join game.
         """
 
@@ -163,13 +163,12 @@ class BonkBot(BotEventHandler):
             self,
             None,
             "",
-            socketio.AsyncClient(ssl_verify=False),
             False,
             Modes.Classic,
             False,
             True,
             False,
-            game_join_params=[link]
+            game_join_params=[link, password]
         )
 
     async def create_game(
@@ -217,7 +216,6 @@ class BonkBot(BotEventHandler):
             self,
             server,
             name,
-            socketio.AsyncClient(ssl_verify=False),
             True,
             Modes.Classic,
             True,
